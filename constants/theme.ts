@@ -25,6 +25,9 @@ export const Colors = {
     icon: "#9BA1A6",
     tabIconDefault: "#9BA1A6",
     tabIconSelected: tintColorDark,
+    card: "#111827",
+    border: "#374151",
+    muted: "#9CA3AF",
   },
 };
 
@@ -53,3 +56,19 @@ export const Fonts = Platform.select({
     mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   },
 });
+module.exports = {
+  content: ["./App.{js,jsx,ts,tsx}", "./**/*.{js,jsx,ts,tsx}"],
+  theme: {
+    extend: {
+      colors: {
+        background: "#0A0A0A",
+        foreground: "#FFFFFF",
+        primary: "#FACC15",
+        secondary: "#1F2937",
+        card: "#111827",
+        border: "#374151",
+        muted: "#9CA3AF",
+      },
+    },
+  },
+};

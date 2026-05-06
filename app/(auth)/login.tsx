@@ -1,77 +1,87 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity } from "react-native";
-import { Button, Card } from "react-native-paper";
-import { Image } from "expo-image";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Image,
+  StyleSheet,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { styles } from "./login.styles";
+import { Eye, EyeOff } from "lucide-react-native";
 import { useRouter } from "expo-router";
-import { Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react-native";
-
 export default function Login() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+
   return (
-    <View
-      style={{
-        backgroundColor: "#EFEAE5",
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-        padding: 10,
-      }}
-    >
-      <Image
-        source={require("../../assets/images/measure-ai logo.png")}
-        style={{ width: 150, height: 150, marginBottom: 20 }}
-        contentFit="contain"
-      />
-      <Text
-        style={{
-          fontSize: 24,
-          fontWeight: "bold",
-          marginBottom: 20,
-          color: "#414C1D",
-        }}
-      >
-        Measure AI
-      </Text>
-      <Text style={{ fontSize: 20, marginBottom: 20 }}>
-        Login to your account
-      </Text>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.wrappersmall}>
+        <Image
+          source={require("../../assets/images/measure-ai logo.png")}
+          resizeMode="contain"
+          style={styles.logoBox}
+        />
 
-      {/*form section*/}
+        <View style={styles.card}>
+          <TextInput
+            placeholder="email"
+            placeholderTextColor="#888"
+            style={styles.input}
+            value={email}
+            onChangeText={setEmail}
+          />
 
-      <TextInput
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        style={{
-          width: "100%",
-          borderWidth: 1,
-          borderColor: "#ccc",
-          borderRadius: 5,
-          padding: 10,
-          marginBottom: 10,
-        }}
-      />
+          {/* Password with eye */}
+          <View style={styles.passwordWrapper}>
+            <TextInput
+              placeholder="password"
+              placeholderTextColor="#888"
+              style={styles.passwordInput}
+              secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
+            />
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+              {showPassword ? <Eye /> : <EyeOff />}
+            </TouchableOpacity>
+          </View>
 
-      <TextInput
-        placeholder="Password"
-        secureTextEntry
-        style={{
-          width: "100%",
-          borderWidth: 1,
-          borderColor: "#ccc",
-          borderRadius: 5,
-          padding: 10,
-          marginBottom: 20,
-        }}
-      />
+          <TouchableOpacity style={styles.button}>
+            <Text style={styles.buttonText}>Sign In</Text>
+          </TouchableOpacity>
 
-      <Button mode="contained" onPress={() => {}} style={{ width: "100%" }}>
-        Login
-      </Button>
-    </View>
+          {/* Forgot */}
+          <TouchableOpacity onPress={() => router.push("/forgotPassword")}>
+            <Text style={styles.forgot}>forgot password?</Text>
+          </TouchableOpacity>
+
+          {/* Google */}
+          <TouchableOpacity style={styles.googleBtn}>
+            <Text style={styles.googleText}>Continue with Google </Text>
+            <Image
+              source={require("../../assets/icons/google.png")}
+              style={{ width: 16, height: 16, marginRight: 12 }}
+            />
+          </TouchableOpacity>
+
+          {/* Privacy */}
+          <Text style={styles.privacy}>
+            By continuing, you agree to our Terms & Privacy Policy
+          </Text>
+
+          {/* Signup */}
+          <View style={styles.row}>
+            <Text style={styles.muted}>Don’t have an account? </Text>
+            <TouchableOpacity onPress={() => router.push("/signup")}>
+              <Text style={styles.link}>Sign up</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </SafeAreaView>
   );
 }
