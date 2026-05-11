@@ -10,8 +10,22 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Plus, Ruler } from "lucide-react-native";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuth } from "../context/AuthContext";
 import { useClients } from "../../hooks/useClients";
+
+function getUserName(user: ReturnType<typeof useAuth>["user"]) {
+  return user?.displayName || user?.email?.split("@")[0] || "there";
+}
+
+function getInitials(user: ReturnType<typeof useAuth>["user"]) {
+  return getUserName(user)
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
 
 export default function Dashboard() {
   const router = useRouter();
@@ -24,6 +38,9 @@ export default function Dashboard() {
     totalMeasurements,
     recentClients,
   } = useClients();
+  const name = getUserName(user);
+  const firstName = name.split(/\s+/)[0];
+  const initials = getInitials(user);
 
   if (authLoading || clientsLoading) {
     return (
@@ -41,14 +58,14 @@ export default function Dashboard() {
           <View>
             <Text style={styles.greeting}>Good morning 👋</Text>
             <Text style={styles.name}>
-              Welcome back, {user?.name?.split(" ")[0]}
+              Welcome back, {firstName}
             </Text>
           </View>
           <TouchableOpacity
             style={styles.avatar}
             onPress={() => router.push("/profile")}
           >
-            <Text style={styles.avatarText}>{user?.initials}</Text>
+            <Text style={styles.avatarText}>{initials}</Text>
           </TouchableOpacity>
         </View>
 
@@ -84,7 +101,7 @@ export default function Dashboard() {
               <TouchableOpacity
                 key={client.id}
                 style={styles.clientRow}
-                onPress={() => router.push(`./client/${client.id}`)}
+                onPress={() => router.push("/clients")}
               >
                 <View style={styles.clientLeft}>
                   <View style={styles.clientAvatar}>

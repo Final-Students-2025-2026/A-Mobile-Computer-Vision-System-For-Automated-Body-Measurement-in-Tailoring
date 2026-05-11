@@ -8,7 +8,7 @@ import {
   Text,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "./context/AuthContext";
 
 export default function SplashScreen() {
   const router = useRouter();

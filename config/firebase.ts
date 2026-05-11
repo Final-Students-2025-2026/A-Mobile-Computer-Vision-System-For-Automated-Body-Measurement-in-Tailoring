@@ -1,24 +1,24 @@
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+// @ts-ignore
+import { getApps, getApp, initializeApp } from "firebase/app";
 
-// Your web app's Firebase configuration from your screenshot
+import { getFirestore } from "firebase/firestore";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { initializeAuth, getReactNativePersistence } from "firebase/auth";
+
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
-  authDomain: "measure-ai-97e94.firebaseapp.com",
-  projectId: "measure-ai-97e94",
-  storageBucket: "measure-ai-97e94.firebasestorage.app",
-  messagingSenderId: "786388966844",
-  appId: "1:786388966844:web:97e9494overview?lb-guhl=GYKCAjntfHRBt6AhG1",
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Auth
-const auth = getAuth(app);
+// Use AsyncStorage so auth survives app restarts
+export const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(AsyncStorage),
+});
 
-// Initialize Firestore
-const db = getFirestore(app);
-
-export { auth, db };
+export const db = getFirestore(app);

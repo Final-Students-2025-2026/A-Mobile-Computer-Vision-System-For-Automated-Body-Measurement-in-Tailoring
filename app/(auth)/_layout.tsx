@@ -1,12 +1,21 @@
-import { Stack } from "expo-router";
+import { Redirect, Stack } from "expo-router";
+import { useAuth } from "../context/AuthContext";
+import { ActivityIndicator, View } from "react-native";
 
 export default function AuthLayout() {
-  return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="login" />
-      <Stack.Screen name="signup" />
-      <Stack.Screen name="forgot-password" />
-      <Stack.Screen name="profile" />
-    </Stack>
-  );
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#b8f54a" />
+      </View>
+    );
+  }
+
+  if (user) {
+    return <Redirect href="/(tabs)" />;
+  }
+
+  return <Stack screenOptions={{ headerShown: false }} />;
 }
