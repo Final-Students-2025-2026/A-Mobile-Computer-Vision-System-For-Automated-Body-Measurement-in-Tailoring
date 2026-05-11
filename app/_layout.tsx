@@ -10,6 +10,10 @@ export default function RootLayout() {
       <Stack.Screen name="splash_screen" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="profile" />
+      <Stack.Screen name="client" />
+      <Stack.Screen name="measurements" />
+      <Stack.Screen name="newClient" />
     </Stack>
   );
 }

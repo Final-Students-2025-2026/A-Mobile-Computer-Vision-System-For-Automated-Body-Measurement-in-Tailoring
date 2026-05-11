@@ -116,7 +116,10 @@ export default function Dashboard() {
             <Plus color="#1a1a1a" size={18} />
             <Text style={styles.primaryBtnText}>New client</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryBtn}>
+          <TouchableOpacity
+            style={styles.secondaryBtn}
+            onPress={() => router.push("/measurements/new")}
+          >
             <Ruler color="#b8f54a" size={18} />
             <Text style={styles.secondaryBtnText}>Take measurements</Text>
           </TouchableOpacity>
