@@ -9,11 +9,27 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ChevronLeft, Mail, User, LogOut } from "lucide-react-native";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "./context/AuthContext";
+
+function getUserName(user: ReturnType<typeof useAuth>["user"]) {
+  return user?.displayName || user?.email?.split("@")[0] || "User";
+}
+
+function getInitials(user: ReturnType<typeof useAuth>["user"]) {
+  return getUserName(user)
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
 
 export default function Profile() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const name = getUserName(user);
+  const initials = getInitials(user);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -31,9 +47,9 @@ export default function Profile() {
         {/* Avatar */}
         <View style={styles.avatarSection}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{user?.initials}</Text>
+            <Text style={styles.avatarText}>{initials}</Text>
           </View>
-          <Text style={styles.name}>{user?.name}</Text>
+          <Text style={styles.name}>{name}</Text>
           <Text style={styles.email}>{user?.email}</Text>
         </View>
 
@@ -43,7 +59,7 @@ export default function Profile() {
             <User color="#b8f54a" size={18} />
             <View style={styles.infoText}>
               <Text style={styles.infoLabel}>Full name</Text>
-              <Text style={styles.infoValue}>{user?.name}</Text>
+              <Text style={styles.infoValue}>{name}</Text>
             </View>
           </View>
 
@@ -61,7 +77,10 @@ export default function Profile() {
         {/* Logout */}
         <TouchableOpacity
           style={styles.logoutBtn}
-          onPress={() => router.replace("/(auth)/login")}
+          onPress={async () => {
+            await logout();
+            router.replace("/(auth)/login");
+          }}
         >
           <LogOut color="#1a1a1a" size={18} />
           <Text style={styles.logoutText}>Log out</Text>

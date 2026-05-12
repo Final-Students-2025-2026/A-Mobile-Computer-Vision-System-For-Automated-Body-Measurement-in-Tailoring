@@ -5,17 +5,33 @@ import {
   TextInput,
   TouchableOpacity,
   Image,
-  StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { styles } from "./login.styles";
 import { Eye, EyeOff } from "lucide-react-native";
 import { useRouter } from "expo-router";
+import { useAuth } from "../context/AuthContext";
+import { useGoogleSignIn } from "../../hooks/useGoogleSignIn";
 export default function Login() {
+  const { login } = useAuth();
+  const {
+    error: googleError,
+    loading: googleLoading,
+    signInWithGoogle,
+  } = useGoogleSignIn();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const handleLogin = async () => {
+    try {
+      setError("");
+      await login(email, password);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -50,9 +66,13 @@ export default function Login() {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.button}>
+          <TouchableOpacity style={styles.button} onPress={handleLogin}>
             <Text style={styles.buttonText}>Sign In</Text>
           </TouchableOpacity>
+
+          {error || googleError ? (
+            <Text style={styles.error}>{error || googleError}</Text>
+          ) : null}
 
           {/* Forgot */}
           <TouchableOpacity onPress={() => router.push("/forgotPassword")}>
@@ -60,8 +80,14 @@ export default function Login() {
           </TouchableOpacity>
 
           {/* Google */}
-          <TouchableOpacity style={styles.googleBtn}>
-            <Text style={styles.googleText}>Continue with Google </Text>
+          <TouchableOpacity
+            style={styles.googleBtn}
+            onPress={signInWithGoogle}
+            disabled={googleLoading}
+          >
+            <Text style={styles.googleText}>
+              {googleLoading ? "Connecting to Google..." : "Continue with Google"}
+            </Text>
             <Image
               source={require("../../assets/icons/google.png")}
               style={{ width: 16, height: 16, marginRight: 12 }}

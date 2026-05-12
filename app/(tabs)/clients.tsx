@@ -6,22 +6,19 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Plus, Search } from "lucide-react-native";
-
-const clientsData = [
-  { id: "1", name: "Abena Kyei", initials: "AK", measurements: 6 },
-  { id: "2", name: "Yaw Mensah", initials: "YM", measurements: 7 },
-  { id: "3", name: "Kofi Manu", initials: "KM", measurements: 5 },
-];
+import { useClients } from "../../hooks/useClients";
 
 export default function Clients() {
   const router = useRouter();
+  const { clients, loading } = useClients();
   const [search, setSearch] = useState("");
 
-  const filtered = clientsData.filter((c) =>
+  const filtered = clients.filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase()),
   );
 
@@ -43,26 +40,41 @@ export default function Clients() {
           />
         </View>
 
-        {/* Client List */}
-        <View style={styles.list}>
-          {filtered.map((client) => (
-            <TouchableOpacity
-              key={client.id}
-              style={styles.clientCard}
-              onPress={() => router.push(`/client/${client.id}`)}
-            >
-              <View style={styles.clientAvatar}>
-                <Text style={styles.clientInitials}>{client.initials}</Text>
-              </View>
-              <View>
-                <Text style={styles.clientName}>{client.name}</Text>
-                <Text style={styles.clientSub}>
-                  {client.measurements} measurements
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+        {/* Loading */}
+        {loading ? (
+          <ActivityIndicator
+            color="#b8f54a"
+            size="large"
+            style={{ marginTop: 40 }}
+          />
+        ) : filtered.length === 0 ? (
+          <Text style={styles.emptyText}>
+            {search
+              ? "No clients match your search"
+              : "No clients yet. Add your first one!"}
+          </Text>
+        ) : (
+          /* Client List */
+          <View style={styles.list}>
+            {filtered.map((client) => (
+              <TouchableOpacity
+                key={client.id}
+                style={styles.clientCard}
+                onPress={() => router.push(`/client/${client.id}`)}
+              >
+                <View style={styles.clientAvatar}>
+                  <Text style={styles.clientInitials}>{client.initials}</Text>
+                </View>
+                <View>
+                  <Text style={styles.clientName}>{client.name}</Text>
+                  <Text style={styles.clientSub}>
+                    {client.measurements} measurements · {client.updatedAt}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </ScrollView>
 
       {/* Floating + Button */}
@@ -91,6 +103,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   searchInput: { flex: 1, color: "#fff", fontSize: 14 },
+  emptyText: {
+    color: "#888",
+    fontSize: 14,
+    textAlign: "center",
+    marginTop: 60,
+  },
   list: { gap: 12 },
   clientCard: {
     flexDirection: "row",

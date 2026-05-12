@@ -6,16 +6,47 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ChevronLeft } from "lucide-react-native";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../config/firebase";
+import { useAuth } from "./context/AuthContext";
 
 export default function NewClient() {
   const router = useRouter();
+  const { user } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!name.trim() || !user) return;
+
+    try {
+      setSaving(true);
+
+      await addDoc(collection(db, "clients"), {
+        userId: user.uid,           // ties client to this tailor
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        measurements: 0,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      router.back();
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Could not save client.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -71,14 +102,15 @@ export default function NewClient() {
 
         {/* Save Button */}
         <TouchableOpacity
-          style={[styles.saveBtn, !name && styles.saveBtnDisabled]}
-          disabled={!name}
-          onPress={() => {
-            // TODO: save to Firestore when Firebase is ready
-            router.back();
-          }}
+          style={[styles.saveBtn, (!name || saving) && styles.saveBtnDisabled]}
+          disabled={!name || saving}
+          onPress={handleSave}
         >
-          <Text style={styles.saveBtnText}>Save client</Text>
+          {saving ? (
+            <ActivityIndicator color="#1a1a1a" />
+          ) : (
+            <Text style={styles.saveBtnText}>Save client</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

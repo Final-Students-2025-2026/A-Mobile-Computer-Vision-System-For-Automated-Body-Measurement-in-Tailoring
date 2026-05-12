@@ -86,7 +86,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: "center",
     flexDirection: "row",
-    alignitems: "center",
     justifyContent: "center",
   },
   googleText: {
@@ -136,6 +135,12 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", justifyContent: "center", marginTop: 14 },
   muted: { color: "#9A9A9A" },
   link: { color: PRIMARY, fontWeight: "600" },
+  error: {
+    color: "#ff6b6b",
+    fontSize: 12,
+    textAlign: "center",
+    marginBottom: 8,
+  },
 });
 
 export { styles };
