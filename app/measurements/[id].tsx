@@ -7,31 +7,49 @@ import {
   StyleSheet,
   Animated,
   Modal,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ChevronLeft, Plus, Users } from "lucide-react-native";
+import {
+  doc,
+  addDoc,
+  updateDoc,
+  collection,
+  serverTimestamp,
+} from "firebase/firestore";
+import { db } from "../../config/firebase";
+import { useAuth } from "../context/AuthContext";
 
 const measurementTypes = ["chest", "waist", "shoulder", "hip"];
 
 export default function TakeMeasurements() {
   const router = useRouter();
   const { id } = useLocalSearchParams();
+  const { user } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [readings, setReadings] = useState<{ [key: string]: number }>({});
   const [currentReading, setCurrentReading] = useState(0);
   const [isLive, setIsLive] = useState(false);
   const [showClientModal, setShowClientModal] = useState(false);
+  const [saving, setSaving] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const pulse2Anim = useRef(new Animated.Value(1)).current;
+  const intervalRef = useRef<any>(null);
 
   const startMeasuring = () => {
-    setShowClientModal(true);
+    if (!id) {
+      setShowClientModal(true);
+    } else {
+      beginMeasuring();
+    }
   };
 
   const handleSelectExisting = () => {
     setShowClientModal(false);
-    beginMeasuring();
+    router.push("/clients");
   };
 
   const handleAddNew = () => {
@@ -72,29 +90,60 @@ export default function TakeMeasurements() {
       ]),
     ).start();
 
-    let value = 0;
-    const interval = setInterval(() => {
-      value = Math.floor(Math.random() * 50) + 20;
+    // Simulate live reading — replace with AR later
+    intervalRef.current = setInterval(() => {
+      const value = Math.floor(Math.random() * 50) + 20;
       setCurrentReading(value);
     }, 500);
 
     setTimeout(() => {
-      clearInterval(interval);
+      clearInterval(intervalRef.current);
     }, 5000);
   };
 
-  const saveMeasurement = () => {
+  const saveMeasurement = async () => {
     const type = measurementTypes[currentIndex];
-    setReadings((prev) => ({ ...prev, [type]: currentReading }));
+    const newReadings = { ...readings, [type]: currentReading };
+    setReadings(newReadings);
 
     if (currentIndex < measurementTypes.length - 1) {
+      // Move to next measurement
       setCurrentIndex(currentIndex + 1);
       setCurrentReading(0);
       setIsLive(false);
       pulseAnim.setValue(1);
       pulse2Anim.setValue(1);
     } else {
-      router.back();
+      // All measurements done — save to Firestore
+      if (!id || !user) {
+        router.back();
+        return;
+      }
+
+      try {
+        setSaving(true);
+
+        // Save measurements as a subcollection
+        await addDoc(collection(db, "clients", id as string, "measurements"), {
+          ...newReadings,
+          takenBy: user.uid,
+          takenAt: serverTimestamp(),
+        });
+
+        // Update client's measurement count and updatedAt
+        await updateDoc(doc(db, "clients", id as string), {
+          measurements: Object.keys(newReadings).length,
+          updatedAt: serverTimestamp(),
+        });
+
+        Alert.alert("Success", "Measurements saved!", [
+          { text: "OK", onPress: () => router.back() },
+        ]);
+      } catch (e: any) {
+        Alert.alert("Error", e.message || "Could not save measurements.");
+      } finally {
+        setSaving(false);
+      }
     }
   };
 
@@ -112,7 +161,7 @@ export default function TakeMeasurements() {
             <ChevronLeft color="#fff" size={24} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
-            {isLive ? "Abena Kyei" : "Take Measurements"}
+            {isLive ? "Taking Measurements" : "Take Measurements"}
           </Text>
           <TouchableOpacity
             style={styles.addClientBtn}
@@ -178,12 +227,20 @@ export default function TakeMeasurements() {
             <Text style={styles.btnText}>add measurements</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity style={styles.btn} onPress={saveMeasurement}>
-            <Text style={styles.btnText}>
-              {currentIndex < measurementTypes.length - 1
-                ? "save & next"
-                : "save measurements"}
-            </Text>
+          <TouchableOpacity
+            style={[styles.btn, saving && { opacity: 0.6 }]}
+            onPress={saveMeasurement}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator color="#1a1a1a" />
+            ) : (
+              <Text style={styles.btnText}>
+                {currentIndex < measurementTypes.length - 1
+                  ? "save & next"
+                  : "save measurements"}
+              </Text>
+            )}
           </TouchableOpacity>
         )}
       </ScrollView>
