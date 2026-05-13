@@ -7,15 +7,18 @@ import {
   Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { styles } from "./login.styles";
+import { createLoginStyles } from "./login.styles";
 import { Eye, EyeOff } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../context/AuthContext";
 import { useGoogleSignIn } from "../../hooks/useGoogleSignIn";
+import { useAppTheme } from "../context/ThemeContext";
 
 export default function Signup() {
   const router = useRouter();
   const { signup } = useAuth();
+  const { theme } = useAppTheme();
+  const styles = createLoginStyles(theme);
   const {
     error: googleError,
     loading: googleLoading,
@@ -49,7 +52,7 @@ export default function Signup() {
           <TextInput
             placeholder="name"
             style={styles.input}
-            placeholderTextColor="#888"
+            placeholderTextColor={theme.muted}
             value={name}
             onChangeText={setName}
           />
@@ -57,7 +60,7 @@ export default function Signup() {
           <TextInput
             placeholder="email"
             style={styles.input}
-            placeholderTextColor="#888"
+            placeholderTextColor={theme.muted}
             value={email}
             onChangeText={setEmail}
           />
@@ -66,13 +69,17 @@ export default function Signup() {
             <TextInput
               placeholder="password"
               style={styles.passwordInput}
-              placeholderTextColor="#888"
+              placeholderTextColor={theme.muted}
               secureTextEntry={!showPassword}
               value={password}
               onChangeText={setPassword}
             />
             <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-              {showPassword ? <Eye /> : <EyeOff />}
+              {showPassword ? (
+                <Eye color={theme.muted} />
+              ) : (
+                <EyeOff color={theme.muted} />
+              )}
             </TouchableOpacity>
           </View>
 

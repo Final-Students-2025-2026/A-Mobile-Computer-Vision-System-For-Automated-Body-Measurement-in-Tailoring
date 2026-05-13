@@ -6,12 +6,14 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Plus, Ruler } from "lucide-react-native";
 import { useAuth } from "../../hooks/useAuth";
 import { useClients } from "../../hooks/useClients";
+import { useAppTheme } from "../context/ThemeContext";
 
 function getUserName(user: ReturnType<typeof useAuth>["user"]) {
   return user?.displayName || user?.email?.split("@")[0] || "there";
@@ -29,6 +31,8 @@ function getInitials(user: ReturnType<typeof useAuth>["user"]) {
 
 export default function Dashboard() {
   const router = useRouter();
+  const { theme } = useAppTheme();
+  const styles = createStyles(theme);
   const { user, loading: authLoading } = useAuth();
   const {
     clients,
@@ -45,7 +49,7 @@ export default function Dashboard() {
   if (authLoading || clientsLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#b8f54a" />
+        <ActivityIndicator size="large" color={theme.primary} />
       </View>
     );
   }
@@ -103,7 +107,14 @@ export default function Dashboard() {
               >
                 <View style={styles.clientLeft}>
                   <View style={styles.clientAvatar}>
-                    <Text style={styles.clientInitials}>{client.initials}</Text>
+                    {client.photoURL ? (
+                      <Image
+                        source={{ uri: client.photoURL }}
+                        style={styles.clientPhoto}
+                      />
+                    ) : (
+                      <Text style={styles.clientInitials}>{client.initials}</Text>
+                    )}
                   </View>
                   <View>
                     <Text style={styles.clientName}>{client.name}</Text>
@@ -128,14 +139,14 @@ export default function Dashboard() {
             style={styles.primaryBtn}
             onPress={() => router.push("/clients")}
           >
-            <Plus color="#1a1a1a" size={18} />
+            <Plus color={theme.primaryText} size={18} />
             <Text style={styles.primaryBtnText}>New client</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.secondaryBtn}
-            onPress={() => router.push("/measurements/new")}
+            onPress={() => router.push("/measurements/[id]")}
           >
-            <Ruler color="#b8f54a" size={18} />
+            <Ruler color={theme.primary} size={18} />
             <Text style={styles.secondaryBtnText}>Take measurements</Text>
           </TouchableOpacity>
         </View>
@@ -144,14 +155,17 @@ export default function Dashboard() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
+  StyleSheet.create({
   loadingContainer: {
     flex: 1,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: theme.background,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
-  container: { flex: 1, backgroundColor: "#1a1a1a" },
+  clientPhoto: { width: "100%", height: "100%" },
+  container: { flex: 1, backgroundColor: theme.background },
   scroll: { padding: 20 },
   header: {
     flexDirection: "row",
@@ -159,28 +173,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
-  greeting: { color: "#aaa", fontSize: 13 },
-  name: { color: "#fff", fontSize: 18, fontWeight: "500", marginTop: 4 },
+  greeting: { color: theme.subtle, fontSize: 13 },
+  name: { color: theme.text, fontSize: 18, fontWeight: "500", marginTop: 4 },
   avatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#b8f54a",
+    backgroundColor: theme.primary,
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { color: "#1a1a1a", fontWeight: "500", fontSize: 14 },
+  avatarText: { color: theme.primaryText, fontWeight: "500", fontSize: 14 },
   statsRow: { flexDirection: "row", gap: 10, marginBottom: 20 },
   statCard: {
     flex: 1,
-    backgroundColor: "#252525",
+    backgroundColor: theme.surface,
     borderRadius: 12,
     padding: 14,
   },
-  statLabel: { color: "#aaa", fontSize: 11, marginBottom: 6 },
-  statValue: { color: "#b8f54a", fontSize: 24, fontWeight: "500" },
+  statLabel: { color: theme.subtle, fontSize: 11, marginBottom: 6 },
+  statValue: { color: theme.primary, fontSize: 24, fontWeight: "500" },
   section: {
-    backgroundColor: "#252525",
+    backgroundColor: theme.surface,
     borderRadius: 12,
     padding: 14,
     marginBottom: 20,
@@ -191,10 +205,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
-  sectionTitle: { color: "#fff", fontSize: 14, fontWeight: "500" },
-  seeAll: { color: "#b8f54a", fontSize: 12 },
+  sectionTitle: { color: theme.text, fontSize: 14, fontWeight: "500" },
+  seeAll: { color: theme.primary, fontSize: 12 },
   emptyText: {
-    color: "#888",
+    color: theme.muted,
     fontSize: 13,
     textAlign: "center",
     paddingVertical: 20,
@@ -210,24 +224,24 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: "#3a3a3a",
+    backgroundColor: theme.surfaceAlt,
     alignItems: "center",
     justifyContent: "center",
   },
-  clientInitials: { color: "#b8f54a", fontSize: 12, fontWeight: "500" },
-  clientName: { color: "#fff", fontSize: 13, fontWeight: "500" },
-  clientUpdated: { color: "#aaa", fontSize: 11 },
+  clientInitials: { color: theme.primary, fontSize: 12, fontWeight: "500" },
+  clientName: { color: theme.text, fontSize: 13, fontWeight: "500" },
+  clientUpdated: { color: theme.subtle, fontSize: 11 },
   badge: {
-    backgroundColor: "#b8f54a",
+    backgroundColor: theme.primary,
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  badgeText: { color: "#1a1a1a", fontSize: 11, fontWeight: "500" },
+  badgeText: { color: theme.primaryText, fontSize: 11, fontWeight: "500" },
   actionsRow: { flexDirection: "row", gap: 10 },
   primaryBtn: {
     flex: 1,
-    backgroundColor: "#b8f54a",
+    backgroundColor: theme.primary,
     borderRadius: 12,
     padding: 14,
     flexDirection: "row",
@@ -235,10 +249,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
   },
-  primaryBtnText: { color: "#1a1a1a", fontSize: 13, fontWeight: "500" },
+  primaryBtnText: { color: theme.primaryText, fontSize: 13, fontWeight: "500" },
   secondaryBtn: {
     flex: 1,
-    backgroundColor: "#252525",
+    backgroundColor: theme.surface,
     borderRadius: 12,
     padding: 14,
     flexDirection: "row",
@@ -246,5 +260,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
   },
-  secondaryBtnText: { color: "#fff", fontSize: 13, fontWeight: "500" },
+  secondaryBtnText: { color: theme.text, fontSize: 13, fontWeight: "500" },
 });

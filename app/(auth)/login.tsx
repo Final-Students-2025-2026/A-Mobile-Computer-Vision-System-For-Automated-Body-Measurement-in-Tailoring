@@ -7,13 +7,16 @@ import {
   Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { styles } from "./login.styles";
+import { createLoginStyles } from "./login.styles";
 import { Eye, EyeOff } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../context/AuthContext";
 import { useGoogleSignIn } from "../../hooks/useGoogleSignIn";
+import { useAppTheme } from "../context/ThemeContext";
 export default function Login() {
   const { login } = useAuth();
+  const { theme } = useAppTheme();
+  const styles = createLoginStyles(theme);
   const {
     error: googleError,
     loading: googleLoading,
@@ -45,7 +48,7 @@ export default function Login() {
         <View style={styles.card}>
           <TextInput
             placeholder="email"
-            placeholderTextColor="#888"
+            placeholderTextColor={theme.muted}
             style={styles.input}
             value={email}
             onChangeText={setEmail}
@@ -55,14 +58,18 @@ export default function Login() {
           <View style={styles.passwordWrapper}>
             <TextInput
               placeholder="password"
-              placeholderTextColor="#888"
+              placeholderTextColor={theme.muted}
               style={styles.passwordInput}
               secureTextEntry={!showPassword}
               value={password}
               onChangeText={setPassword}
             />
             <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-              {showPassword ? <Eye /> : <EyeOff />}
+              {showPassword ? (
+                <Eye color={theme.muted} />
+              ) : (
+                <EyeOff color={theme.muted} />
+              )}
             </TouchableOpacity>
           </View>
 
