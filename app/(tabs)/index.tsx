@@ -10,7 +10,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Plus, Ruler } from "lucide-react-native";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../../hooks/useAuth";
 import { useClients } from "../../hooks/useClients";
 
 function getUserName(user: ReturnType<typeof useAuth>["user"]) {
@@ -57,9 +57,7 @@ export default function Dashboard() {
         <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>Good morning 👋</Text>
-            <Text style={styles.name}>
-              Welcome back, {firstName}
-            </Text>
+            <Text style={styles.name}>Welcome back, {firstName}</Text>
           </View>
           <TouchableOpacity
             style={styles.avatar}
@@ -133,7 +131,10 @@ export default function Dashboard() {
             <Plus color="#1a1a1a" size={18} />
             <Text style={styles.primaryBtnText}>New client</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryBtn}>
+          <TouchableOpacity
+            style={styles.secondaryBtn}
+            onPress={() => router.push("/measurements/new")}
+          >
             <Ruler color="#b8f54a" size={18} />
             <Text style={styles.secondaryBtnText}>Take measurements</Text>
           </TouchableOpacity>
