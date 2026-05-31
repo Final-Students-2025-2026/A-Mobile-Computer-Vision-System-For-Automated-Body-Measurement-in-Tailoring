@@ -27,12 +27,30 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
   const handleLogin = async () => {
+    const trimmedEmail = email.trim();
+
+    setError("");
+
+    if (!trimmedEmail) {
+      setError("Email required.");
+      return;
+    }
+
+    if (!password) {
+      setError("Password required.");
+      return;
+    }
+
     try {
-      setError("");
-      await login(email, password);
+      setLoading(true);
+      await login(trimmedEmail, password);
     } catch (e: any) {
       setError(e.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -52,6 +70,9 @@ export default function Login() {
             style={styles.input}
             value={email}
             onChangeText={setEmail}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
           />
 
           {/* Password with eye */}
@@ -63,6 +84,7 @@ export default function Login() {
               secureTextEntry={!showPassword}
               value={password}
               onChangeText={setPassword}
+              autoCapitalize="none"
             />
             <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
               {showPassword ? (
@@ -73,8 +95,14 @@ export default function Login() {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.button} onPress={handleLogin}>
-            <Text style={styles.buttonText}>Sign In</Text>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>
+              {loading ? "Signing In..." : "Sign In"}
+            </Text>
           </TouchableOpacity>
 
           {error || googleError ? (

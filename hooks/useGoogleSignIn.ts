@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import * as WebBrowser from "expo-web-browser";
+import * as AuthSession from "expo-auth-session";
 import * as Google from "expo-auth-session/providers/google";
 import { Platform } from "react-native";
 import { useAuth } from "../app/context/AuthContext";
@@ -45,18 +46,22 @@ export function useGoogleSignIn() {
 
   const hasClientId = clientId !== missingClientId;
 
-  const [request, response, promptAsync] = Google.useIdTokenAuthRequest(
-    {
-      clientId,
-      webClientId:
-        process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
-        process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
-      iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-      androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-      selectAccount: true,
-    },
-  );
+  const redirectUri = AuthSession.makeRedirectUri({
+    scheme: "measureai",
+    // 'useProxy' is not part of AuthSessionRedirectUriOptions in some SDK versions
+    // so omit it to preserve correct typing. If a proxy redirect is required,
+    // configure it elsewhere or adjust the SDK/types accordingly.
+  });
 
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+
+    scopes: ["openid", "profile", "email"],
+
+    selectAccount: true,
+  });
   useEffect(() => {
     let isActive = true;
 

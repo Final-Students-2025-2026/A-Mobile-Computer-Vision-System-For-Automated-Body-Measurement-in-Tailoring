@@ -66,6 +66,21 @@ const createLoginStyles = (theme) =>
     fontWeight: "600",
   },
 
+  title: {
+    color: theme?.text || "#fff",
+    fontSize: 24,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+
+  helperText: {
+    color: theme?.muted || "#9A9A9A",
+    fontSize: 13,
+    textAlign: "center",
+    marginBottom: 18,
+  },
+
   forgot: {
     color: theme?.muted || "#9A9A9A",
     textAlign: "center",
@@ -139,6 +154,12 @@ const createLoginStyles = (theme) =>
   link: { color: theme?.primary || PRIMARY, fontWeight: "600" },
   error: {
     color: theme?.danger || "#ff6b6b",
+    fontSize: 12,
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  success: {
+    color: theme?.primary || PRIMARY,
     fontSize: 12,
     textAlign: "center",
     marginBottom: 8,

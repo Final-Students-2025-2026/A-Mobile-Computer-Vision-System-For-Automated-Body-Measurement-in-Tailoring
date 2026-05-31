@@ -13,6 +13,7 @@
       "bundleIdentifier": "com.measureai.app"
     },
     "android": {
+      "package": "com.measureai.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

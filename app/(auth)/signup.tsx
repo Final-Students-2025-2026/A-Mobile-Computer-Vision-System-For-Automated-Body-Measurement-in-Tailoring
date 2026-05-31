@@ -29,13 +29,57 @@ export default function Signup() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const getPasswordError = (value: string) => {
+    if (!value) {
+      return "Password required.";
+    }
+
+    if (value.length < 8) {
+      return "Password must be at least 8 characters.";
+    }
+
+    if (!/[A-Z]/.test(value)) {
+      return "Password must include an uppercase letter.";
+    }
+
+    if (!/\d/.test(value)) {
+      return "Password must include a number.";
+    }
+
+    return "";
+  };
 
   const handleSignup = async () => {
+    const trimmedEmail = email.trim();
+    const trimmedName = name.trim();
+    const passwordError = getPasswordError(password);
+
+    setError("");
+
+    if (!trimmedName) {
+      setError("Name required.");
+      return;
+    }
+
+    if (!trimmedEmail) {
+      setError("Email required.");
+      return;
+    }
+
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
+
     try {
-      setError("");
-      await signup(email, password, name);
+      setLoading(true);
+      await signup(trimmedEmail, password, trimmedName);
     } catch (e: any) {
       setError(e.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -55,6 +99,7 @@ export default function Signup() {
             placeholderTextColor={theme.muted}
             value={name}
             onChangeText={setName}
+            autoCapitalize="words"
           />
 
           <TextInput
@@ -63,6 +108,9 @@ export default function Signup() {
             placeholderTextColor={theme.muted}
             value={email}
             onChangeText={setEmail}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
           />
 
           <View style={styles.passwordWrapper}>
@@ -73,6 +121,7 @@ export default function Signup() {
               secureTextEntry={!showPassword}
               value={password}
               onChangeText={setPassword}
+              autoCapitalize="none"
             />
             <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
               {showPassword ? (
@@ -87,8 +136,14 @@ export default function Signup() {
             <Text style={styles.error}>{error || googleError}</Text>
           ) : null}
 
-          <TouchableOpacity style={styles.button} onPress={handleSignup}>
-            <Text style={styles.buttonText}>Sign Up</Text>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={handleSignup}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>
+              {loading ? "Creating Account..." : "Sign Up"}
+            </Text>
           </TouchableOpacity>
 
           {/* Google */}
