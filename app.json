@@ -16,6 +16,7 @@
       }
     },
     "android": {
+      "package": "com.measureai.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -31,6 +32,12 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Measure AI to access your photos so you can add client profile photos."
+        }
+      ],
       [
         "expo-splash-screen",
         {

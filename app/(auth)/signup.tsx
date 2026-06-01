@@ -7,15 +7,18 @@ import {
   Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { styles } from "./login.styles";
+import { createLoginStyles } from "./login.styles";
 import { Eye, EyeOff } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../context/AuthContext";
 import { useGoogleSignIn } from "../../hooks/useGoogleSignIn";
+import { useAppTheme } from "../context/ThemeContext";
 
 export default function Signup() {
   const router = useRouter();
   const { signup } = useAuth();
+  const { theme } = useAppTheme();
+  const styles = createLoginStyles(theme);
   const {
     error: googleError,
     loading: googleLoading,
@@ -26,13 +29,57 @@ export default function Signup() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const getPasswordError = (value: string) => {
+    if (!value) {
+      return "Password required.";
+    }
+
+    if (value.length < 8) {
+      return "Password must be at least 8 characters.";
+    }
+
+    if (!/[A-Z]/.test(value)) {
+      return "Password must include an uppercase letter.";
+    }
+
+    if (!/\d/.test(value)) {
+      return "Password must include a number.";
+    }
+
+    return "";
+  };
 
   const handleSignup = async () => {
+    const trimmedEmail = email.trim();
+    const trimmedName = name.trim();
+    const passwordError = getPasswordError(password);
+
+    setError("");
+
+    if (!trimmedName) {
+      setError("Name required.");
+      return;
+    }
+
+    if (!trimmedEmail) {
+      setError("Email required.");
+      return;
+    }
+
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
+
     try {
-      setError("");
-      await signup(email, password, name);
+      setLoading(true);
+      await signup(trimmedEmail, password, trimmedName);
     } catch (e: any) {
       setError(e.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -49,30 +96,39 @@ export default function Signup() {
           <TextInput
             placeholder="name"
             style={styles.input}
-            placeholderTextColor="#888"
+            placeholderTextColor={theme.muted}
             value={name}
             onChangeText={setName}
+            autoCapitalize="words"
           />
 
           <TextInput
             placeholder="email"
             style={styles.input}
-            placeholderTextColor="#888"
+            placeholderTextColor={theme.muted}
             value={email}
             onChangeText={setEmail}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
           />
 
           <View style={styles.passwordWrapper}>
             <TextInput
               placeholder="password"
               style={styles.passwordInput}
-              placeholderTextColor="#888"
+              placeholderTextColor={theme.muted}
               secureTextEntry={!showPassword}
               value={password}
               onChangeText={setPassword}
+              autoCapitalize="none"
             />
             <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-              {showPassword ? <Eye /> : <EyeOff />}
+              {showPassword ? (
+                <Eye color={theme.muted} />
+              ) : (
+                <EyeOff color={theme.muted} />
+              )}
             </TouchableOpacity>
           </View>
 
@@ -80,8 +136,14 @@ export default function Signup() {
             <Text style={styles.error}>{error || googleError}</Text>
           ) : null}
 
-          <TouchableOpacity style={styles.button} onPress={handleSignup}>
-            <Text style={styles.buttonText}>Sign Up</Text>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={handleSignup}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>
+              {loading ? "Creating Account..." : "Sign Up"}
+            </Text>
           </TouchableOpacity>
 
           {/* Google */}

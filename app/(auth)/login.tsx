@@ -7,13 +7,16 @@ import {
   Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { styles } from "./login.styles";
+import { createLoginStyles } from "./login.styles";
 import { Eye, EyeOff } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../context/AuthContext";
 import { useGoogleSignIn } from "../../hooks/useGoogleSignIn";
+import { useAppTheme } from "../context/ThemeContext";
 export default function Login() {
   const { login } = useAuth();
+  const { theme } = useAppTheme();
+  const styles = createLoginStyles(theme);
   const {
     error: googleError,
     loading: googleLoading,
@@ -24,12 +27,30 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
   const handleLogin = async () => {
+    const trimmedEmail = email.trim();
+
+    setError("");
+
+    if (!trimmedEmail) {
+      setError("Email required.");
+      return;
+    }
+
+    if (!password) {
+      setError("Password required.");
+      return;
+    }
+
     try {
-      setError("");
-      await login(email, password);
+      setLoading(true);
+      await login(trimmedEmail, password);
     } catch (e: any) {
       setError(e.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -45,29 +66,43 @@ export default function Login() {
         <View style={styles.card}>
           <TextInput
             placeholder="email"
-            placeholderTextColor="#888"
+            placeholderTextColor={theme.muted}
             style={styles.input}
             value={email}
             onChangeText={setEmail}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
           />
 
           {/* Password with eye */}
           <View style={styles.passwordWrapper}>
             <TextInput
               placeholder="password"
-              placeholderTextColor="#888"
+              placeholderTextColor={theme.muted}
               style={styles.passwordInput}
               secureTextEntry={!showPassword}
               value={password}
               onChangeText={setPassword}
+              autoCapitalize="none"
             />
             <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-              {showPassword ? <Eye /> : <EyeOff />}
+              {showPassword ? (
+                <Eye color={theme.muted} />
+              ) : (
+                <EyeOff color={theme.muted} />
+              )}
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.button} onPress={handleLogin}>
-            <Text style={styles.buttonText}>Sign In</Text>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>
+              {loading ? "Signing In..." : "Sign In"}
+            </Text>
           </TouchableOpacity>
 
           {error || googleError ? (

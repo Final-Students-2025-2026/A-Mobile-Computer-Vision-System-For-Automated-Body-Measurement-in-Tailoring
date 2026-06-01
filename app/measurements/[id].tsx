@@ -22,11 +22,14 @@ import {
 } from "firebase/firestore";
 import { db } from "../../config/firebase";
 import { useAuth } from "../context/AuthContext";
+import { useAppTheme } from "../context/ThemeContext";
 
 const measurementTypes = ["chest", "waist", "shoulder", "hip"];
 
 export default function TakeMeasurements() {
   const router = useRouter();
+  const { theme } = useAppTheme();
+  const styles = createStyles(theme);
   const { id } = useLocalSearchParams();
   const { user } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -158,7 +161,7 @@ export default function TakeMeasurements() {
             style={styles.backBtn}
             onPress={() => router.back()}
           >
-            <ChevronLeft color="#fff" size={24} />
+            <ChevronLeft color={theme.text} size={24} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
             {isLive ? "Taking Measurements" : "Take Measurements"}
@@ -167,7 +170,7 @@ export default function TakeMeasurements() {
             style={styles.addClientBtn}
             onPress={() => router.push("/newClient")}
           >
-            <Plus color="#1a1a1a" size={14} />
+            <Plus color={theme.primaryText} size={14} />
             <Text style={styles.addClientText}>Add Client</Text>
           </TouchableOpacity>
         </View>
@@ -233,7 +236,7 @@ export default function TakeMeasurements() {
             disabled={saving}
           >
             {saving ? (
-              <ActivityIndicator color="#1a1a1a" />
+              <ActivityIndicator color={theme.primaryText} />
             ) : (
               <Text style={styles.btnText}>
                 {currentIndex < measurementTypes.length - 1
@@ -263,7 +266,7 @@ export default function TakeMeasurements() {
               style={styles.modalBtn}
               onPress={handleSelectExisting}
             >
-              <Users color="#1a1a1a" size={18} />
+              <Users color={theme.primaryText} size={18} />
               <Text style={styles.modalBtnText}>Select existing client</Text>
             </TouchableOpacity>
 
@@ -271,7 +274,7 @@ export default function TakeMeasurements() {
               style={styles.modalBtnOutline}
               onPress={handleAddNew}
             >
-              <Plus color="#b8f54a" size={18} />
+              <Plus color={theme.primary} size={18} />
               <Text style={styles.modalBtnOutlineText}>Add new client</Text>
             </TouchableOpacity>
 
@@ -288,8 +291,9 @@ export default function TakeMeasurements() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#1a1a1a" },
+const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
+  StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.background },
   scroll: { padding: 20 },
   header: {
     flexDirection: "row",
@@ -301,23 +305,23 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: "#252525",
+    backgroundColor: theme.surface,
     alignItems: "center",
     justifyContent: "center",
   },
-  headerTitle: { color: "#fff", fontSize: 18, fontWeight: "500" },
+  headerTitle: { color: theme.text, fontSize: 18, fontWeight: "500" },
   addClientBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#b8f54a",
+    backgroundColor: theme.primary,
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 6,
     gap: 4,
   },
-  addClientText: { color: "#1a1a1a", fontSize: 12, fontWeight: "600" },
+  addClientText: { color: theme.primaryText, fontSize: 12, fontWeight: "600" },
   measuringLabel: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 22,
     fontWeight: "500",
     marginBottom: 16,
@@ -327,12 +331,12 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#333",
+    backgroundColor: theme.border,
   },
-  progressDotActive: { backgroundColor: "#b8f54a" },
-  progressDotDone: { backgroundColor: "#5a7a1a" },
+  progressDotActive: { backgroundColor: theme.primary },
+  progressDotDone: { backgroundColor: theme.primary },
   scannerCard: {
-    backgroundColor: "#252525",
+    backgroundColor: theme.surface,
     borderRadius: 16,
     padding: 30,
     alignItems: "center",
@@ -349,7 +353,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     borderRadius: 999,
     borderWidth: 1.5,
-    borderColor: "#b8f54a",
+    borderColor: theme.primary,
   },
   ringOuter: { width: 160, height: 160, opacity: 0.3 },
   ringInner: { width: 100, height: 100, opacity: 0.6 },
@@ -357,48 +361,48 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: theme.background,
     alignItems: "center",
     justifyContent: "center",
   },
   centerIconText: { fontSize: 24 },
-  hoverText: { color: "#888", fontSize: 13 },
+  hoverText: { color: theme.muted, fontSize: 13 },
   readingRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 30,
   },
-  readingLabel: { color: "#888", fontSize: 14 },
-  readingValue: { color: "#b8f54a", fontSize: 22, fontWeight: "600" },
+  readingLabel: { color: theme.muted, fontSize: 14 },
+  readingValue: { color: theme.primary, fontSize: 22, fontWeight: "600" },
   btn: {
-    backgroundColor: "#b8f54a",
+    backgroundColor: theme.primary,
     borderRadius: 30,
     paddingVertical: 16,
     alignItems: "center",
   },
-  btnText: { color: "#1a1a1a", fontSize: 15, fontWeight: "600" },
+  btnText: { color: theme.primaryText, fontSize: 15, fontWeight: "600" },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    backgroundColor: theme.overlay,
     justifyContent: "flex-end",
   },
   modalCard: {
-    backgroundColor: "#252525",
+    backgroundColor: theme.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
     paddingBottom: 40,
   },
   modalTitle: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 20,
     fontWeight: "600",
     marginBottom: 6,
   },
-  modalSubtitle: { color: "#888", fontSize: 14, marginBottom: 24 },
+  modalSubtitle: { color: theme.muted, fontSize: 14, marginBottom: 24 },
   modalBtn: {
-    backgroundColor: "#b8f54a",
+    backgroundColor: theme.primary,
     borderRadius: 30,
     paddingVertical: 16,
     flexDirection: "row",
@@ -407,10 +411,10 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 12,
   },
-  modalBtnText: { color: "#1a1a1a", fontSize: 15, fontWeight: "600" },
+  modalBtnText: { color: theme.primaryText, fontSize: 15, fontWeight: "600" },
   modalBtnOutline: {
     borderWidth: 1,
-    borderColor: "#b8f54a",
+    borderColor: theme.primary,
     borderRadius: 30,
     paddingVertical: 16,
     flexDirection: "row",
@@ -419,7 +423,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 12,
   },
-  modalBtnOutlineText: { color: "#b8f54a", fontSize: 15, fontWeight: "500" },
+  modalBtnOutlineText: { color: theme.primary, fontSize: 15, fontWeight: "500" },
   modalCancel: { alignItems: "center", paddingVertical: 12 },
-  modalCancelText: { color: "#888", fontSize: 14 },
+  modalCancelText: { color: theme.muted, fontSize: 14 },
 });

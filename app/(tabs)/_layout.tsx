@@ -3,14 +3,23 @@ import React from "react";
 import { ActivityIndicator, View } from "react-native";
 import { Home, Users } from "lucide-react-native";
 import { useAuth } from "../context/AuthContext";
+import { useAppTheme } from "../context/ThemeContext";
 
 export default function TabsLayout() {
   const { user, loading } = useAuth();
+  const { theme } = useAppTheme();
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#b8f54a" />
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: theme.background,
+        }}
+      >
+        <ActivityIndicator size="large" color={theme.primary} />
       </View>
     );
   }
@@ -23,9 +32,12 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: { backgroundColor: "#1a1a1a", borderTopColor: "#333" },
-        tabBarActiveTintColor: "#b8f54a",
-        tabBarInactiveTintColor: "#888",
+        tabBarStyle: {
+          backgroundColor: theme.background,
+          borderTopColor: theme.border,
+        },
+        tabBarActiveTintColor: theme.primary,
+        tabBarInactiveTintColor: theme.muted,
       }}
     >
       <Tabs.Screen
