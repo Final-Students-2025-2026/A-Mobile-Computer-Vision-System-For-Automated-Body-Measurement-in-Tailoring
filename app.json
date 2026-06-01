@@ -10,7 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.measureai.app"
+      "bundleIdentifier": "com.measureai.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -28,7 +31,6 @@
     },
     "plugins": [
       "expo-router",
-
       [
         "expo-splash-screen",
         {
@@ -45,6 +47,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "dd92d056-4873-4e44-bad3-4eef55661e5c"
+      }
     }
   }
 }
