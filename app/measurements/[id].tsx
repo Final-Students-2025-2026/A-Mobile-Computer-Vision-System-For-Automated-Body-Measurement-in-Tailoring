@@ -93,7 +93,6 @@ export default function TakeMeasurements() {
       ]),
     ).start();
 
-    // Simulate live reading — replace with AR later
     intervalRef.current = setInterval(() => {
       const value = Math.floor(Math.random() * 50) + 20;
       setCurrentReading(value);
@@ -117,7 +116,7 @@ export default function TakeMeasurements() {
       pulseAnim.setValue(1);
       pulse2Anim.setValue(1);
     } else {
-      // All measurements done — save to Firestore
+      // All measurements done; save to Firestore.
       if (!id || !user) {
         router.back();
         return;
@@ -139,7 +138,7 @@ export default function TakeMeasurements() {
           updatedAt: serverTimestamp(),
         });
 
-        Alert.alert("Success", "Measurements saved!", [
+        Alert.alert("Saved", "Measurements are ready to share with a tailor.", [
           { text: "OK", onPress: () => router.back() },
         ]);
       } catch (e: any) {
@@ -164,14 +163,14 @@ export default function TakeMeasurements() {
             <ChevronLeft color={theme.text} size={24} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
-            {isLive ? "Taking Measurements" : "Take Measurements"}
+            {isLive ? "Taking measurements" : "Take measurements"}
           </Text>
           <TouchableOpacity
             style={styles.addClientBtn}
             onPress={() => router.push("/newClient")}
           >
             <Plus color={theme.primaryText} size={14} />
-            <Text style={styles.addClientText}>Add Client</Text>
+            <Text style={styles.addClientText}>Add profile</Text>
           </TouchableOpacity>
         </View>
 
@@ -215,7 +214,7 @@ export default function TakeMeasurements() {
               <Text style={styles.centerIconText}>⏱</Text>
             </View>
           </View>
-          <Text style={styles.hoverText}>hover around the area</Text>
+          <Text style={styles.hoverText}>prototype reading</Text>
         </View>
 
         {/* Current Reading */}
@@ -227,7 +226,7 @@ export default function TakeMeasurements() {
         {/* Button */}
         {!isLive ? (
           <TouchableOpacity style={styles.btn} onPress={startMeasuring}>
-            <Text style={styles.btnText}>add measurements</Text>
+            <Text style={styles.btnText}>start measurement capture</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
@@ -257,9 +256,9 @@ export default function TakeMeasurements() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Choose a client</Text>
+            <Text style={styles.modalTitle}>Choose a measurement profile</Text>
             <Text style={styles.modalSubtitle}>
-              Who are you taking measurements for?
+              Who are these measurements for?
             </Text>
 
             <TouchableOpacity
@@ -267,7 +266,7 @@ export default function TakeMeasurements() {
               onPress={handleSelectExisting}
             >
               <Users color={theme.primaryText} size={18} />
-              <Text style={styles.modalBtnText}>Select existing client</Text>
+              <Text style={styles.modalBtnText}>Select existing profile</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -275,7 +274,7 @@ export default function TakeMeasurements() {
               onPress={handleAddNew}
             >
               <Plus color={theme.primary} size={18} />
-              <Text style={styles.modalBtnOutlineText}>Add new client</Text>
+              <Text style={styles.modalBtnOutlineText}>Add new profile</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -293,137 +292,145 @@ export default function TakeMeasurements() {
 
 const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
   StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.background },
-  scroll: { padding: 20 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 20,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: theme.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: { color: theme.text, fontSize: 18, fontWeight: "500" },
-  addClientBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: theme.primary,
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    gap: 4,
-  },
-  addClientText: { color: theme.primaryText, fontSize: 12, fontWeight: "600" },
-  measuringLabel: {
-    color: theme.text,
-    fontSize: 22,
-    fontWeight: "500",
-    marginBottom: 16,
-  },
-  progressRow: { flexDirection: "row", gap: 8, marginBottom: 20 },
-  progressDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: theme.border,
-  },
-  progressDotActive: { backgroundColor: theme.primary },
-  progressDotDone: { backgroundColor: theme.primary },
-  scannerCard: {
-    backgroundColor: theme.surface,
-    borderRadius: 16,
-    padding: 30,
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  scannerWrapper: {
-    width: 180,
-    height: 180,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  ring: {
-    position: "absolute",
-    borderRadius: 999,
-    borderWidth: 1.5,
-    borderColor: theme.primary,
-  },
-  ringOuter: { width: 160, height: 160, opacity: 0.3 },
-  ringInner: { width: 100, height: 100, opacity: 0.6 },
-  centerIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: theme.background,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  centerIconText: { fontSize: 24 },
-  hoverText: { color: theme.muted, fontSize: 13 },
-  readingRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 30,
-  },
-  readingLabel: { color: theme.muted, fontSize: 14 },
-  readingValue: { color: theme.primary, fontSize: 22, fontWeight: "600" },
-  btn: {
-    backgroundColor: theme.primary,
-    borderRadius: 30,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  btnText: { color: theme.primaryText, fontSize: 15, fontWeight: "600" },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: theme.overlay,
-    justifyContent: "flex-end",
-  },
-  modalCard: {
-    backgroundColor: theme.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: 40,
-  },
-  modalTitle: {
-    color: theme.text,
-    fontSize: 20,
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  modalSubtitle: { color: theme.muted, fontSize: 14, marginBottom: 24 },
-  modalBtn: {
-    backgroundColor: theme.primary,
-    borderRadius: 30,
-    paddingVertical: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    marginBottom: 12,
-  },
-  modalBtnText: { color: theme.primaryText, fontSize: 15, fontWeight: "600" },
-  modalBtnOutline: {
-    borderWidth: 1,
-    borderColor: theme.primary,
-    borderRadius: 30,
-    paddingVertical: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    marginBottom: 12,
-  },
-  modalBtnOutlineText: { color: theme.primary, fontSize: 15, fontWeight: "500" },
-  modalCancel: { alignItems: "center", paddingVertical: 12 },
-  modalCancelText: { color: theme.muted, fontSize: 14 },
-});
+    container: { flex: 1, backgroundColor: theme.background },
+    scroll: { padding: 20 },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 20,
+    },
+    backBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: theme.surface,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    headerTitle: { color: theme.text, fontSize: 18, fontWeight: "500" },
+    addClientBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: theme.primary,
+      borderRadius: 20,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      gap: 4,
+    },
+    addClientText: {
+      color: theme.primaryText,
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    measuringLabel: {
+      color: theme.text,
+      fontSize: 22,
+      fontWeight: "500",
+      marginBottom: 16,
+    },
+    progressRow: { flexDirection: "row", gap: 8, marginBottom: 20 },
+    progressDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: theme.border,
+    },
+    progressDotActive: { backgroundColor: theme.primary },
+    progressDotDone: { backgroundColor: theme.primary },
+    scannerCard: {
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      padding: 30,
+      alignItems: "center",
+      marginBottom: 24,
+    },
+    scannerWrapper: {
+      width: 180,
+      height: 180,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 16,
+    },
+    ring: {
+      position: "absolute",
+      borderRadius: 999,
+      borderWidth: 1.5,
+      borderColor: theme.primary,
+    },
+    ringOuter: { width: 160, height: 160, opacity: 0.3 },
+    ringInner: { width: 100, height: 100, opacity: 0.6 },
+    centerIcon: {
+      width: 50,
+      height: 50,
+      borderRadius: 25,
+      backgroundColor: theme.background,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    centerIconText: { fontSize: 24 },
+    hoverText: { color: theme.muted, fontSize: 13 },
+    readingRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 30,
+    },
+    readingLabel: { color: theme.muted, fontSize: 14 },
+    readingValue: { color: theme.primary, fontSize: 22, fontWeight: "600" },
+    btn: {
+      backgroundColor: theme.primary,
+      borderRadius: 30,
+      paddingVertical: 16,
+      alignItems: "center",
+    },
+    btnText: { color: theme.primaryText, fontSize: 15, fontWeight: "600" },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: theme.overlay,
+      justifyContent: "flex-end",
+    },
+    modalCard: {
+      backgroundColor: theme.surface,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      padding: 24,
+      paddingBottom: 40,
+    },
+    modalTitle: {
+      color: theme.text,
+      fontSize: 20,
+      fontWeight: "600",
+      marginBottom: 6,
+    },
+    modalSubtitle: { color: theme.muted, fontSize: 14, marginBottom: 24 },
+    modalBtn: {
+      backgroundColor: theme.primary,
+      borderRadius: 30,
+      paddingVertical: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      marginBottom: 12,
+    },
+    modalBtnText: { color: theme.primaryText, fontSize: 15, fontWeight: "600" },
+    modalBtnOutline: {
+      borderWidth: 1,
+      borderColor: theme.primary,
+      borderRadius: 30,
+      paddingVertical: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      marginBottom: 12,
+    },
+    modalBtnOutlineText: {
+      color: theme.primary,
+      fontSize: 15,
+      fontWeight: "500",
+    },
+    modalCancel: { alignItems: "center", paddingVertical: 12 },
+    modalCancelText: { color: theme.muted, fontSize: 14 },
+  });

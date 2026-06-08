@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "786388966844",
+    "project_id": "measure-ai-97e94",
+    "storage_bucket": "measure-ai-97e94.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:786388966844:android:1cbf6155196fcc6d17dfb9",
+        "android_client_info": {
+          "package_name": "com.measureai.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "786388966844-i8vqn3itvktrap484poen6tbdvfjtkoe.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDpAr_PgP573pkEucBjhyIFhTCf7GnmEWk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "786388966844-i8vqn3itvktrap484poen6tbdvfjtkoe.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "786388966844-5dk3uit8gbqvrnda8tcmoa2lsvh0nvav.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.measureai.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

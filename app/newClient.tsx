@@ -36,7 +36,10 @@ export default function NewClient() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permission.granted) {
-      Alert.alert("Permission needed", "Allow photo access to add a client photo.");
+      Alert.alert(
+        "Permission needed",
+        "Allow photo access to add a reference photo.",
+      );
       return;
     }
 
@@ -91,8 +94,8 @@ export default function NewClient() {
       Alert.alert(
         "Error",
         e.code
-          ? `${e.code}: ${e.message || "Could not save client."}`
-          : e.message || "Could not save client.",
+          ? `${e.code}: ${e.message || "Could not save profile."}`
+          : e.message || "Could not save profile.",
       );
     } finally {
       setSaving(false);
@@ -107,7 +110,7 @@ export default function NewClient() {
           <TouchableOpacity onPress={() => router.back()}>
             <ChevronLeft color={theme.text} size={24} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>New Client</Text>
+          <Text style={styles.headerTitle}>New measurement profile</Text>
           <View style={{ width: 24 }} />
         </View>
 
@@ -120,12 +123,12 @@ export default function NewClient() {
               <Text style={styles.avatarText}>+</Text>
             )}
           </View>
-          <Text style={styles.avatarHint}>add photo</Text>
+          <Text style={styles.avatarHint}>add reference photo</Text>
         </TouchableOpacity>
 
         {/* Form */}
         <View style={styles.form}>
-          <Text style={styles.label}>Full name</Text>
+          <Text style={styles.label}>Person or client name</Text>
           <TextInput
             placeholder="e.g. Abena Kyei"
             placeholderTextColor={theme.muted}
@@ -134,7 +137,7 @@ export default function NewClient() {
             onChangeText={setName}
           />
 
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>Email for sharing</Text>
           <TextInput
             placeholder="e.g. abena@email.com"
             placeholderTextColor={theme.muted}
@@ -144,7 +147,7 @@ export default function NewClient() {
             keyboardType="email-address"
           />
 
-          <Text style={styles.label}>Phone</Text>
+          <Text style={styles.label}>Phone or WhatsApp</Text>
           <TextInput
             placeholder="e.g. 0244000000"
             placeholderTextColor={theme.muted}
@@ -164,7 +167,7 @@ export default function NewClient() {
           {saving ? (
             <ActivityIndicator color={theme.primaryText} />
           ) : (
-            <Text style={styles.saveBtnText}>Save client</Text>
+            <Text style={styles.saveBtnText}>Save profile</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
