@@ -4,7 +4,7 @@
     "slug": "measure-ai",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/measure-ai logo.png",
     "scheme": "measureai",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,

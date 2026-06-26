@@ -8,6 +8,12 @@ const createLoginStyles = (theme) =>
     flex: 1,
     backgroundColor: theme?.authBackground || "#000",
   },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  authScrollContent: {
+    flexGrow: 1,
+  },
   wrapper: {
     flex: 1,
     justifyContent: "center",
@@ -34,6 +40,8 @@ const createLoginStyles = (theme) =>
     backgroundColor: theme?.surface || "#0B0B0B",
     borderRadius: 24,
     padding: 20,
+    width: "100%",
+    maxWidth: 420,
 
     // glow effect
     borderWidth: 1,
@@ -104,6 +112,11 @@ const createLoginStyles = (theme) =>
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "center",
+  },
+  googleIcon: {
+    width: 16,
+    height: 16,
+    marginRight: 12,
   },
   googleText: {
     color: theme?.text || "#fff",

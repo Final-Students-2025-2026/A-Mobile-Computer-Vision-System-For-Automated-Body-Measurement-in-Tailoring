@@ -9,10 +9,11 @@ import {
   Image,
   TextInput,
   Alert,
+  Share,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { ChevronLeft, Pencil, Save, Trash2, X } from "lucide-react-native";
+import { ChevronLeft, Pencil, Save, Send, Shirt, Trash2, X } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import {
   doc,
@@ -189,6 +190,44 @@ export default function ClientProfile() {
     );
   };
 
+  const getMeasurementsMessage = () => {
+    const nameLine = `${client?.name || "Measurement profile"} measurements`;
+    const contactLines = [
+      email ? `Email: ${email}` : "",
+      phone ? `Phone: ${phone}` : "",
+    ].filter(Boolean);
+    const measurementLines = measurementKeys.map(
+      (key) => `${key}: ${measurements[key]} cm`,
+    );
+
+    return [
+      nameLine,
+      "",
+      ...contactLines,
+      contactLines.length ? "" : "",
+      ...measurementLines,
+      "",
+      "Shared from Measure AI.",
+    ]
+      .filter((line, index, lines) => line || lines[index - 1])
+      .join("\n");
+  };
+
+  const handleShareMeasurements = async () => {
+    if (!measurementKeys.length) {
+      Alert.alert(
+        "No measurements yet",
+        "Add measurements before sharing this profile with a tailor.",
+      );
+      return;
+    }
+
+    await Share.share({
+      title: `${client?.name || "Client"} measurements`,
+      message: getMeasurementsMessage(),
+    });
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -227,7 +266,7 @@ export default function ClientProfile() {
             <ChevronLeft color={theme.text} size={24} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
-            {isEditing ? "Edit client" : client?.name || "Client"}
+            {isEditing ? "Edit profile" : client?.name || "Profile"}
           </Text>
           <TouchableOpacity
             onPress={isEditing ? handleCancelEdit : () => setIsEditing(true)}
@@ -340,6 +379,26 @@ export default function ClientProfile() {
               </TouchableOpacity>
             </View>
 
+            <View style={styles.shareActions}>
+              <TouchableOpacity
+                style={[
+                  styles.shareBtn,
+                  !measurementKeys.length && styles.disabled,
+                ]}
+                disabled={!measurementKeys.length}
+                onPress={handleShareMeasurements}
+              >
+                <Send color={theme.primaryText} size={16} />
+                <Text style={styles.shareBtnText}>Send to tailor</Text>
+              </TouchableOpacity>
+              <View style={styles.shopGuide}>
+                <Shirt color={theme.primary} size={16} />
+                <Text style={styles.shopGuideText}>
+                  Use these sizes to compare online size charts.
+                </Text>
+              </View>
+            </View>
+
             {/* Measurements Grid */}
             {measurementKeys.length > 0 ? (
               <View style={styles.grid}>
@@ -353,7 +412,9 @@ export default function ClientProfile() {
                 ))}
               </View>
             ) : (
-              <Text style={styles.emptyText}>No measurements yet</Text>
+              <Text style={styles.emptyText}>
+                No measurements yet. Capture sizes before sending to a tailor.
+              </Text>
             )}
           </View>
         ) : null}
@@ -364,7 +425,7 @@ export default function ClientProfile() {
             style={styles.newMeasurementBtn}
             onPress={() => router.push(`/measurements/${id}` as any)}
           >
-            <Text style={styles.newMeasurementText}>+ new measurements</Text>
+            <Text style={styles.newMeasurementText}>+ capture measurements</Text>
           </TouchableOpacity>
         ) : null}
       </ScrollView>
@@ -416,6 +477,31 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
       fontWeight: "600",
     },
     grid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+    shareActions: { gap: 10, marginBottom: 18 },
+    shareBtn: {
+      backgroundColor: theme.primary,
+      borderRadius: 30,
+      paddingVertical: 14,
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "row",
+      gap: 8,
+    },
+    shareBtnText: {
+      color: theme.primaryText,
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    shopGuide: {
+      borderColor: theme.border,
+      borderWidth: 1,
+      borderRadius: 12,
+      padding: 12,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    shopGuideText: { color: theme.muted, fontSize: 12, flex: 1 },
     measureBox: {
       width: "48%",
       backgroundColor: theme.background,

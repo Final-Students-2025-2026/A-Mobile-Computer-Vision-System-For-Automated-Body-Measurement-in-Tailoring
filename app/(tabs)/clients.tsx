@@ -30,13 +30,16 @@ export default function Clients() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Header */}
-        <Text style={styles.title}>Clients</Text>
+        <Text style={styles.title}>Measurement profiles</Text>
+        <Text style={styles.subtitle}>
+          Save sizes for yourself, customers, or anyone you need to send to a tailor.
+        </Text>
 
         {/* Search */}
         <View style={styles.searchWrapper}>
           <Search color={theme.muted} size={16} />
           <TextInput
-            placeholder="search clients..."
+            placeholder="search profiles..."
             placeholderTextColor={theme.muted}
             style={styles.searchInput}
             value={search}
@@ -54,8 +57,8 @@ export default function Clients() {
         ) : filtered.length === 0 ? (
           <Text style={styles.emptyText}>
             {search
-              ? "No clients match your search"
-              : "No clients yet. Add your first one!"}
+              ? "No profiles match your search"
+              : "No profiles yet. Add yourself or your first client."}
           </Text>
         ) : (
           /* Client List */
@@ -79,7 +82,7 @@ export default function Clients() {
                 <View>
                   <Text style={styles.clientName}>{client.name}</Text>
                   <Text style={styles.clientSub}>
-                    {client.measurements} measurements · {client.updatedAt}
+                    {client.measurements} saved sizes - {client.updatedAt}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -103,7 +106,14 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
   StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },
   scroll: { padding: 20, paddingBottom: 100 },
-  title: { color: theme.text, fontSize: 28, fontWeight: "600", marginBottom: 20 },
+  title: { color: theme.text, fontSize: 28, fontWeight: "600" },
+  subtitle: {
+    color: theme.muted,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 6,
+    marginBottom: 20,
+  },
   searchWrapper: {
     flexDirection: "row",
     alignItems: "center",
