@@ -4,6 +4,7 @@
     "slug": "measure-ai",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/images/measure-ai-icon.png",
     "scheme": "measureai",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -20,7 +21,12 @@
       "package": "com.measureai.app",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/measure-ai-icon.png",
+        "backgroundColor": "#C8F04A"
+      },
       "permissions": [
+        "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ]
     },
@@ -31,6 +37,12 @@
     "plugins": [
       "expo-router",
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Measure AI to use your camera for body measurement capture."
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "Allow Measure AI to access your photos so you can add client profile photos."
@@ -39,12 +51,12 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/measure-ai-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#C8F04A",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#1A1A1A"
           }
         }
       ]
