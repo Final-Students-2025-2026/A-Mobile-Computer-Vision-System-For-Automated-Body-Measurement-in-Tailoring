@@ -173,7 +173,7 @@ export default function Dashboard() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.secondaryBtn}
-            onPress={() => router.push("/measurements/[id]")}
+            onPress={() => router.push("/measurements/new")}
           >
             <Ruler color={theme.primary} size={18} />
             <Text style={styles.secondaryBtnText}>Start measuring</Text>

@@ -196,9 +196,10 @@ export default function ClientProfile() {
       email ? `Email: ${email}` : "",
       phone ? `Phone: ${phone}` : "",
     ].filter(Boolean);
-    const measurementLines = measurementKeys.map(
-      (key) => `${key}: ${measurements[key]} cm`,
-    );
+    const measurementLines = measurementKeys.flatMap((key) => {
+      const value = measurements[key];
+      return typeof value === "number" ? [`${key}: ${value} cm`] : [];
+    });
 
     return [
       nameLine,
@@ -253,7 +254,16 @@ export default function ClientProfile() {
   // Get measurement keys dynamically
   const measurementKeys = measurements
     ? Object.keys(measurements).filter(
-        (k) => k !== "takenAt" && k !== "takenBy",
+        (k) =>
+          ![
+            "takenAt",
+            "takenBy",
+            "labels",
+            "engine",
+            "confidence",
+            "frameUri",
+            "measurementType",
+          ].includes(k),
       )
     : [];
 
@@ -406,7 +416,9 @@ export default function ClientProfile() {
                   <View key={key} style={styles.measureBox}>
                     <Text style={styles.measureLabel}>{key}</Text>
                     <Text style={styles.measureValue}>
-                      {measurements[key]} cm
+                      {typeof measurements[key] === "number"
+                        ? `${measurements[key]} cm`
+                        : "--"}
                     </Text>
                   </View>
                 ))}

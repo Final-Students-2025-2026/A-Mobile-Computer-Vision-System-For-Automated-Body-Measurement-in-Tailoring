@@ -47,7 +47,7 @@ export default function SplashScreen() {
         }).start();
       }
     });
-  }, [loading, user]);
+  }, [buttonFade, fadeAnim, loading, router, scaleAnim, user]);
 
   return (
     <View style={styles.container}>
@@ -62,7 +62,7 @@ export default function SplashScreen() {
         ]}
       >
         <Image
-          source={require("../assets/images/measure-ai logo.png")}
+          source={require("../assets/images/measure-ai-icon.png")}
           style={styles.logo}
           resizeMode="contain"
         />

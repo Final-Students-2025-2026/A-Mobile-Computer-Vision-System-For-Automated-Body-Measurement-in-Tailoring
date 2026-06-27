@@ -1,18 +1,25 @@
-import React, { useState, useRef } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Animated,
   Modal,
   ActivityIndicator,
   Alert,
 } from "react-native";
+import { CameraView } from "expo-camera";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { ChevronLeft, Plus, Users } from "lucide-react-native";
+import {
+  Camera,
+  Check,
+  ChevronLeft,
+  Plus,
+  Ruler,
+  Users,
+} from "lucide-react-native";
 import {
   doc,
   addDoc,
@@ -23,36 +30,81 @@ import {
 import { db } from "../../config/firebase";
 import { useAuth } from "../context/AuthContext";
 import { useAppTheme } from "../context/ThemeContext";
-
-const measurementTypes = ["chest", "waist", "shoulder", "hip"];
+import { useMeasurementCapture } from "../../hooks/useMeasurementCapture";
+import {
+  measurementParts,
+} from "../../services/measurementEngine";
 
 export default function TakeMeasurements() {
   const router = useRouter();
   const { theme } = useAppTheme();
   const styles = createStyles(theme);
   const { id } = useLocalSearchParams();
+  const clientId = Array.isArray(id) ? id[0] : id;
+  const hasSelectedClient =
+    Boolean(clientId) && clientId !== "new" && clientId !== "[id]";
   const { user } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [readings, setReadings] = useState<{ [key: string]: number }>({});
-  const [currentReading, setCurrentReading] = useState(0);
+  const [readings, setReadings] = useState<Record<string, number>>({});
   const [isLive, setIsLive] = useState(false);
   const [showClientModal, setShowClientModal] = useState(false);
   const [saving, setSaving] = useState(false);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const pulse2Anim = useRef(new Animated.Value(1)).current;
-  const intervalRef = useRef<any>(null);
+  const {
+    cameraRef,
+    status,
+    currentReading,
+    confidence,
+    source,
+    error,
+    startCapture,
+    stopCapture,
+    resetCapture,
+  } = useMeasurementCapture();
 
-  const startMeasuring = () => {
-    if (!id) {
+  const currentPart = measurementParts[currentIndex];
+  const completedCount = Object.keys(readings).length;
+  const categories = useMemo(
+    () => Array.from(new Set(measurementParts.map((part) => part.category))),
+    [],
+  );
+  const engineLabel =
+    source === "mediapipe"
+      ? `MediaPipe confidence ${Math.round(confidence * 100)}%`
+      : "Live camera analysis";
+
+  useEffect(() => {
+    return () => stopCapture();
+  }, [stopCapture]);
+
+  const beginMeasuring = async () => {
+    if (!hasSelectedClient) {
       setShowClientModal(true);
-    } else {
-      beginMeasuring();
+      return;
     }
+
+    const started = await startCapture(currentPart.id);
+
+    if (!started) {
+      Alert.alert(
+        "Camera permission needed",
+        "Allow camera access to capture body measurement frames.",
+      );
+      return;
+    }
+
+    setIsLive(true);
+  };
+
+  const handleSelectPart = async (index: number) => {
+    setCurrentIndex(index);
+    stopCapture();
+    resetCapture();
+    setIsLive(false);
   };
 
   const handleSelectExisting = () => {
     setShowClientModal(false);
-    router.push("/clients");
+    router.push("/(tabs)/clients");
   };
 
   const handleAddNew = () => {
@@ -60,194 +112,213 @@ export default function TakeMeasurements() {
     router.push("/newClient");
   };
 
-  const beginMeasuring = () => {
-    setIsLive(true);
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.3,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-      ]),
-    ).start();
-
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse2Anim, {
-          toValue: 1.6,
-          duration: 1200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse2Anim, {
-          toValue: 1,
-          duration: 1200,
-          useNativeDriver: true,
-        }),
-      ]),
-    ).start();
-
-    intervalRef.current = setInterval(() => {
-      const value = Math.floor(Math.random() * 50) + 20;
-      setCurrentReading(value);
-    }, 500);
-
-    setTimeout(() => {
-      clearInterval(intervalRef.current);
-    }, 5000);
-  };
-
   const saveMeasurement = async () => {
-    const type = measurementTypes[currentIndex];
-    const newReadings = { ...readings, [type]: currentReading };
+    if (!currentReading) {
+      Alert.alert(
+        "No reading yet",
+        "Keep the body part in frame until a measurement reading appears.",
+      );
+      return;
+    }
+
+    const newReadings = {
+      ...readings,
+      [currentPart.id]: currentReading,
+    };
     setReadings(newReadings);
+    stopCapture();
+    resetCapture();
+    setIsLive(false);
 
-    if (currentIndex < measurementTypes.length - 1) {
-      // Move to next measurement
-      setCurrentIndex(currentIndex + 1);
-      setCurrentReading(0);
-      setIsLive(false);
-      pulseAnim.setValue(1);
-      pulse2Anim.setValue(1);
-    } else {
-      // All measurements done; save to Firestore.
-      if (!id || !user) {
-        router.back();
-        return;
-      }
+    const nextIndex = measurementParts.findIndex(
+      (part, index) => index > currentIndex && !newReadings[part.id],
+    );
 
-      try {
-        setSaving(true);
+    if (nextIndex !== -1) {
+      setCurrentIndex(nextIndex);
+      return;
+    }
 
-        // Save measurements as a subcollection
-        await addDoc(collection(db, "clients", id as string, "measurements"), {
-          ...newReadings,
-          takenBy: user.uid,
-          takenAt: serverTimestamp(),
-        });
+    if (!hasSelectedClient || !user || !clientId) {
+      setShowClientModal(true);
+      return;
+    }
 
-        // Update client's measurement count and updatedAt
-        await updateDoc(doc(db, "clients", id as string), {
-          measurements: Object.keys(newReadings).length,
-          updatedAt: serverTimestamp(),
-        });
+    try {
+      setSaving(true);
 
-        Alert.alert("Saved", "Measurements are ready to share with a tailor.", [
-          { text: "OK", onPress: () => router.back() },
-        ]);
-      } catch (e: any) {
-        Alert.alert("Error", e.message || "Could not save measurements.");
-      } finally {
-        setSaving(false);
-      }
+      await addDoc(collection(db, "clients", clientId, "measurements"), {
+        ...newReadings,
+        labels: Object.fromEntries(
+          measurementParts.map((part) => [part.id, part.label]),
+        ),
+        engine: source || "calibration",
+        confidence,
+        takenBy: user.uid,
+        takenAt: serverTimestamp(),
+      });
+
+      await updateDoc(doc(db, "clients", clientId), {
+        measurements: Object.keys(newReadings).length,
+        updatedAt: serverTimestamp(),
+      });
+
+      Alert.alert("Saved", "Measurements are ready to share with a tailor.", [
+        { text: "OK", onPress: () => router.back() },
+      ]);
+    } catch (e: any) {
+      Alert.alert(
+        "Could not save",
+        e.code
+          ? `${e.code}: ${e.message || "Check that this profile belongs to your account."}`
+          : e.message || "Check that this profile belongs to your account.",
+      );
+    } finally {
+      setSaving(false);
     }
   };
 
-  const currentType = measurementTypes[currentIndex];
+  const saveLabel =
+    completedCount + 1 >= measurementParts.length
+      ? "save measurements"
+      : "save & continue";
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll}>
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
-            style={styles.backBtn}
+            style={styles.iconBtn}
             onPress={() => router.back()}
           >
             <ChevronLeft color={theme.text} size={24} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>
-            {isLive ? "Taking measurements" : "Take measurements"}
-          </Text>
+          <View style={styles.headerCopy}>
+            <Text style={styles.headerTitle}>Body measurements</Text>
+            <Text style={styles.headerSubtitle}>
+              {completedCount}/{measurementParts.length} captured
+            </Text>
+          </View>
           <TouchableOpacity
-            style={styles.addClientBtn}
+            style={styles.iconBtn}
             onPress={() => router.push("/newClient")}
           >
-            <Plus color={theme.primaryText} size={14} />
-            <Text style={styles.addClientText}>Add profile</Text>
+            <Plus color={theme.text} size={20} />
           </TouchableOpacity>
         </View>
 
-        {/* Measuring label */}
-        {isLive && (
-          <Text style={styles.measuringLabel}>measuring {currentType}</Text>
-        )}
-
-        {/* Progress dots */}
-        <View style={styles.progressRow}>
-          {measurementTypes.map((type, index) => (
-            <View
-              key={type}
-              style={[
-                styles.progressDot,
-                index === currentIndex && styles.progressDotActive,
-                index < currentIndex && styles.progressDotDone,
-              ]}
-            />
-          ))}
-        </View>
-
-        {/* Scanner */}
-        <View style={styles.scannerCard}>
-          <View style={styles.scannerWrapper}>
-            <Animated.View
-              style={[
-                styles.ring,
-                styles.ringOuter,
-                { transform: [{ scale: pulse2Anim }] },
-              ]}
-            />
-            <Animated.View
-              style={[
-                styles.ring,
-                styles.ringInner,
-                { transform: [{ scale: pulseAnim }] },
-              ]}
-            />
-            <View style={styles.centerIcon}>
-              <Text style={styles.centerIconText}>⏱</Text>
+        <View style={styles.capturePanel}>
+          <View style={styles.partHeader}>
+            <View>
+              <Text style={styles.eyebrow}>{currentPart.category}</Text>
+              <Text style={styles.partTitle}>{currentPart.label}</Text>
+            </View>
+            <View style={styles.readingPill}>
+              <Text style={styles.readingPillValue}>
+                {currentReading || "--"} cm
+              </Text>
             </View>
           </View>
-          <Text style={styles.hoverText}>prototype reading</Text>
+          <Text style={styles.guideText}>{currentPart.guide}</Text>
+
+          <View style={styles.cameraWrapper}>
+            <CameraView ref={cameraRef} style={styles.camera} facing="back" />
+            <View style={styles.cameraOverlay}>
+              <View style={styles.frameGuide}>
+                <View style={styles.frameLineTop} />
+                <View style={styles.frameLineBottom} />
+              </View>
+              <View style={styles.cameraBadge}>
+                <Camera color={theme.primaryText} size={14} />
+                <Text style={styles.cameraBadgeText}>
+                  {isLive ? "capturing" : status}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.engineRow}>
+            <Ruler color={theme.primary} size={16} />
+            <Text style={styles.engineText}>
+              {error || (isLive ? engineLabel : "Align the body part, then start capture.")}
+            </Text>
+          </View>
         </View>
 
-        {/* Current Reading */}
-        <View style={styles.readingRow}>
-          <Text style={styles.readingLabel}>current reading</Text>
-          <Text style={styles.readingValue}>{currentReading} cm</Text>
-        </View>
-
-        {/* Button */}
-        {!isLive ? (
-          <TouchableOpacity style={styles.btn} onPress={startMeasuring}>
-            <Text style={styles.btnText}>start measurement capture</Text>
-          </TouchableOpacity>
-        ) : (
+        <View style={styles.actionsRow}>
+          {!isLive ? (
+            <TouchableOpacity style={styles.primaryBtn} onPress={beginMeasuring}>
+              <Camera color={theme.primaryText} size={18} />
+              <Text style={styles.primaryBtnText}>start capture</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.primaryBtn, saving && styles.disabled]}
+              onPress={saveMeasurement}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator color={theme.primaryText} />
+              ) : (
+                <>
+                  <Check color={theme.primaryText} size={18} />
+                  <Text style={styles.primaryBtnText}>{saveLabel}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
-            style={[styles.btn, saving && { opacity: 0.6 }]}
-            onPress={saveMeasurement}
-            disabled={saving}
+            style={styles.secondaryBtn}
+            onPress={() => {
+              stopCapture();
+              setIsLive(false);
+            }}
           >
-            {saving ? (
-              <ActivityIndicator color={theme.primaryText} />
-            ) : (
-              <Text style={styles.btnText}>
-                {currentIndex < measurementTypes.length - 1
-                  ? "save & next"
-                  : "save measurements"}
-              </Text>
-            )}
+            <Text style={styles.secondaryBtnText}>pause</Text>
           </TouchableOpacity>
-        )}
+        </View>
+
+        {categories.map((category) => (
+          <View key={category} style={styles.section}>
+            <Text style={styles.sectionTitle}>{category}</Text>
+            <View style={styles.partGrid}>
+              {measurementParts
+                .map((part, index) => ({ part, index }))
+                .filter(({ part }) => part.category === category)
+                .map(({ part, index }) => {
+                  const isActive = index === currentIndex;
+                  const isDone = Boolean(readings[part.id]);
+                  return (
+                    <TouchableOpacity
+                      key={part.id}
+                      style={[
+                        styles.partChip,
+                        isActive && styles.partChipActive,
+                        isDone && styles.partChipDone,
+                      ]}
+                      onPress={() => handleSelectPart(index)}
+                    >
+                      <Text
+                        style={[
+                          styles.partChipText,
+                          isActive && styles.partChipTextActive,
+                        ]}
+                      >
+                        {part.label}
+                      </Text>
+                      {isDone && (
+                        <Text style={styles.partChipValue}>
+                          {readings[part.id]} cm
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+            </View>
+          </View>
+        ))}
       </ScrollView>
 
-      {/* Client Selection Modal */}
       <Modal
         visible={showClientModal}
         transparent
@@ -258,7 +329,7 @@ export default function TakeMeasurements() {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Choose a measurement profile</Text>
             <Text style={styles.modalSubtitle}>
-              Who are these measurements for?
+              Save measurements to a client or personal profile.
             </Text>
 
             <TouchableOpacity
@@ -293,98 +364,171 @@ export default function TakeMeasurements() {
 const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.background },
-    scroll: { padding: 20 },
+    scroll: { padding: 18, paddingBottom: 36 },
     header: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      marginBottom: 20,
+      marginBottom: 16,
     },
-    backBtn: {
-      width: 36,
-      height: 36,
-      borderRadius: 10,
+    iconBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
       backgroundColor: theme.surface,
       alignItems: "center",
       justifyContent: "center",
     },
-    headerTitle: { color: theme.text, fontSize: 18, fontWeight: "500" },
-    addClientBtn: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: theme.primary,
-      borderRadius: 20,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      gap: 4,
-    },
-    addClientText: {
-      color: theme.primaryText,
-      fontSize: 12,
-      fontWeight: "600",
-    },
-    measuringLabel: {
-      color: theme.text,
-      fontSize: 22,
-      fontWeight: "500",
-      marginBottom: 16,
-    },
-    progressRow: { flexDirection: "row", gap: 8, marginBottom: 20 },
-    progressDot: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-      backgroundColor: theme.border,
-    },
-    progressDotActive: { backgroundColor: theme.primary },
-    progressDotDone: { backgroundColor: theme.primary },
-    scannerCard: {
+    headerCopy: { alignItems: "center" },
+    headerTitle: { color: theme.text, fontSize: 18, fontWeight: "700" },
+    headerSubtitle: { color: theme.muted, fontSize: 12, marginTop: 2 },
+    capturePanel: {
       backgroundColor: theme.surface,
-      borderRadius: 16,
-      padding: 30,
-      alignItems: "center",
-      marginBottom: 24,
+      borderRadius: 14,
+      padding: 14,
+      marginBottom: 14,
     },
-    scannerWrapper: {
-      width: 180,
-      height: 180,
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 16,
-    },
-    ring: {
-      position: "absolute",
-      borderRadius: 999,
-      borderWidth: 1.5,
-      borderColor: theme.primary,
-    },
-    ringOuter: { width: 160, height: 160, opacity: 0.3 },
-    ringInner: { width: 100, height: 100, opacity: 0.6 },
-    centerIcon: {
-      width: 50,
-      height: 50,
-      borderRadius: 25,
-      backgroundColor: theme.background,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    centerIconText: { fontSize: 24 },
-    hoverText: { color: theme.muted, fontSize: 13 },
-    readingRow: {
+    partHeader: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
-      marginBottom: 30,
+      marginBottom: 8,
     },
-    readingLabel: { color: theme.muted, fontSize: 14 },
-    readingValue: { color: theme.primary, fontSize: 22, fontWeight: "600" },
-    btn: {
-      backgroundColor: theme.primary,
-      borderRadius: 30,
-      paddingVertical: 16,
+    eyebrow: {
+      color: theme.primary,
+      fontSize: 12,
+      fontWeight: "700",
+      textTransform: "uppercase",
+    },
+    partTitle: { color: theme.text, fontSize: 28, fontWeight: "700" },
+    readingPill: {
+      minWidth: 92,
+      borderRadius: 14,
+      backgroundColor: theme.background,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
       alignItems: "center",
     },
-    btnText: { color: theme.primaryText, fontSize: 15, fontWeight: "600" },
+    readingPillValue: {
+      color: theme.primary,
+      fontSize: 20,
+      fontWeight: "700",
+    },
+    guideText: {
+      color: theme.muted,
+      fontSize: 13,
+      lineHeight: 18,
+      marginBottom: 12,
+    },
+    cameraWrapper: {
+      width: "100%",
+      aspectRatio: 3 / 4,
+      borderRadius: 12,
+      overflow: "hidden",
+      backgroundColor: theme.background,
+    },
+    camera: { ...StyleSheet.absoluteFillObject },
+    cameraOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 18,
+    },
+    frameGuide: {
+      width: "68%",
+      height: "72%",
+      borderLeftWidth: 2,
+      borderRightWidth: 2,
+      borderColor: theme.primary,
+      justifyContent: "space-between",
+      opacity: 0.9,
+    },
+    frameLineTop: {
+      height: 2,
+      backgroundColor: theme.primary,
+      width: "100%",
+    },
+    frameLineBottom: {
+      height: 2,
+      backgroundColor: theme.primary,
+      width: "100%",
+    },
+    cameraBadge: {
+      position: "absolute",
+      top: 14,
+      left: 14,
+      backgroundColor: theme.primary,
+      borderRadius: 20,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+    },
+    cameraBadgeText: {
+      color: theme.primaryText,
+      fontSize: 12,
+      fontWeight: "700",
+    },
+    engineRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      marginTop: 12,
+    },
+    engineText: { color: theme.muted, fontSize: 12, flex: 1, lineHeight: 17 },
+    actionsRow: { flexDirection: "row", gap: 10, marginBottom: 20 },
+    primaryBtn: {
+      flex: 1,
+      backgroundColor: theme.primary,
+      borderRadius: 30,
+      paddingVertical: 15,
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "row",
+      gap: 8,
+    },
+    primaryBtnText: {
+      color: theme.primaryText,
+      fontSize: 15,
+      fontWeight: "700",
+    },
+    secondaryBtn: {
+      width: 92,
+      borderRadius: 30,
+      borderWidth: 1,
+      borderColor: theme.border,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    secondaryBtnText: { color: theme.text, fontSize: 14, fontWeight: "600" },
+    disabled: { opacity: 0.55 },
+    section: { marginBottom: 16 },
+    sectionTitle: {
+      color: theme.subtle,
+      fontSize: 13,
+      fontWeight: "700",
+      marginBottom: 8,
+    },
+    partGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+    partChip: {
+      width: "31.5%",
+      minHeight: 58,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.surface,
+      padding: 10,
+      justifyContent: "center",
+    },
+    partChipActive: {
+      borderColor: theme.primary,
+      backgroundColor: theme.primary,
+    },
+    partChipDone: { borderColor: theme.primary },
+    partChipText: { color: theme.text, fontSize: 13, fontWeight: "600" },
+    partChipTextActive: { color: theme.primaryText },
+    partChipValue: { color: theme.primary, fontSize: 11, marginTop: 4 },
     modalOverlay: {
       flex: 1,
       backgroundColor: theme.overlay,
@@ -400,7 +544,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
     modalTitle: {
       color: theme.text,
       fontSize: 20,
-      fontWeight: "600",
+      fontWeight: "700",
       marginBottom: 6,
     },
     modalSubtitle: { color: theme.muted, fontSize: 14, marginBottom: 24 },
@@ -414,7 +558,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
       gap: 8,
       marginBottom: 12,
     },
-    modalBtnText: { color: theme.primaryText, fontSize: 15, fontWeight: "600" },
+    modalBtnText: { color: theme.primaryText, fontSize: 15, fontWeight: "700" },
     modalBtnOutline: {
       borderWidth: 1,
       borderColor: theme.primary,
@@ -429,7 +573,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
     modalBtnOutlineText: {
       color: theme.primary,
       fontSize: 15,
-      fontWeight: "500",
+      fontWeight: "600",
     },
     modalCancel: { alignItems: "center", paddingVertical: 12 },
     modalCancelText: { color: theme.muted, fontSize: 14 },
