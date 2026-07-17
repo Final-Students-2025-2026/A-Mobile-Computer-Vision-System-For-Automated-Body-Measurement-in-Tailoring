@@ -31,9 +31,8 @@ import { db } from "../../config/firebase";
 import { useAuth } from "../context/AuthContext";
 import { useAppTheme } from "../context/ThemeContext";
 import { useMeasurementCapture } from "../../hooks/useMeasurementCapture";
-import {
-  measurementParts,
-} from "../../services/measurementEngine";
+import { measurementParts } from "../../services/measurementEngine";
+import { validateMeasurement } from "../../services/measurementAPI";
 
 export default function TakeMeasurements() {
   const router = useRouter();
@@ -121,14 +120,79 @@ export default function TakeMeasurements() {
       return;
     }
 
-    const newReadings = {
-      ...readings,
-      [currentPart.id]: currentReading,
-    };
-    setReadings(newReadings);
-    stopCapture();
-    resetCapture();
-    setIsLive(false);
+    // Validate measurement via API first
+try {
+  const validation = await validateMeasurement({
+    height: 170, // TODO: get from user profile
+    gender: 1,   // TODO: get from user profile
+    age: 25,     // TODO: get from user profile
+    weight: 70,  // TODO: get from user profile
+    bmi: 22.5,   // TODO: get from user profile
+    ar_measurement: currentReading,
+    body_part: currentPart.id,
+    unit: "cm",
+  });
+
+  if (!validation.is_valid) {
+    Alert.alert(
+      "Check measurement ⚠️",
+      `${validation.message}\n\nSuggested: ${validation.suggested_value} cm\n\nDo you want to use the suggested value?`,
+      [
+        {
+          text: "Use suggested",
+          onPress: () => {
+            const newReadings = {
+              ...readings,
+              [currentPart.id]: validation.suggested_value,
+            };
+            setReadings(newReadings);
+            stopCapture();
+            resetCapture();
+            setIsLive(false);
+          },
+        },
+        {
+          text: "Keep my reading",
+          onPress: () => {
+            const newReadings = {
+              ...readings,
+              [currentPart.id]: currentReading,
+            };
+            setReadings(newReadings);
+            stopCapture();
+            resetCapture();
+            setIsLive(false);
+          },
+        },
+        {
+          text: "Rescan",
+          style: "cancel",
+        },
+      ]
+    );
+    return;
+  }
+
+  // Measurement is valid — proceed normally
+  Alert.alert(
+    "Measurement validated ✅",
+    validation.message,
+    [{ text: "OK" }]
+  );
+
+} catch (e) {
+  // If API fails just continue without validation
+  console.log("Validation API unavailable:", e);
+}
+
+const newReadings = {
+  ...readings,
+  [currentPart.id]: currentReading,
+};
+setReadings(newReadings);
+stopCapture();
+resetCapture();
+setIsLive(false);
 
     const nextIndex = measurementParts.findIndex(
       (part, index) => index > currentIndex && !newReadings[part.id],
@@ -240,14 +304,20 @@ export default function TakeMeasurements() {
           <View style={styles.engineRow}>
             <Ruler color={theme.primary} size={16} />
             <Text style={styles.engineText}>
-              {error || (isLive ? engineLabel : "Align the body part, then start capture.")}
+              {error ||
+                (isLive
+                  ? engineLabel
+                  : "Align the body part, then start capture.")}
             </Text>
           </View>
         </View>
 
         <View style={styles.actionsRow}>
           {!isLive ? (
-            <TouchableOpacity style={styles.primaryBtn} onPress={beginMeasuring}>
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              onPress={beginMeasuring}
+            >
               <Camera color={theme.primaryText} size={18} />
               <Text style={styles.primaryBtnText}>start capture</Text>
             </TouchableOpacity>
