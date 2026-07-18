@@ -33,8 +33,10 @@ import { useAppTheme } from "../context/ThemeContext";
 import { useMeasurementCapture } from "../../hooks/useMeasurementCapture";
 import { measurementParts } from "../../services/measurementEngine";
 import { validateMeasurement } from "../../services/measurementAPI";
+import { useUserProfile } from "../../hooks/useUserProfile";
 
 export default function TakeMeasurements() {
+  const { profile } = useUserProfile();
   const router = useRouter();
   const { theme } = useAppTheme();
   const styles = createStyles(theme);
@@ -121,78 +123,75 @@ export default function TakeMeasurements() {
     }
 
     // Validate measurement via API first
-try {
-  const validation = await validateMeasurement({
-    height: 170, // TODO: get from user profile
-    gender: 1,   // TODO: get from user profile
-    age: 25,     // TODO: get from user profile
-    weight: 70,  // TODO: get from user profile
-    bmi: 22.5,   // TODO: get from user profile
-    ar_measurement: currentReading,
-    body_part: currentPart.id,
-    unit: "cm",
-  });
+    try {
+      const validation = await validateMeasurement({
+        height: profile?.height ?? 170,
+        gender: profile?.gender ?? 1,
+        age: profile?.age ?? 25,
+        weight: profile?.weight ?? 70,
+        bmi: profile?.bmi ?? 22.5,
+        ar_measurement: currentReading,
+        body_part: currentPart.id,
+        unit: "cm",
+      });
 
-  if (!validation.is_valid) {
-    Alert.alert(
-      "Check measurement ⚠️",
-      `${validation.message}\n\nSuggested: ${validation.suggested_value} cm\n\nDo you want to use the suggested value?`,
-      [
-        {
-          text: "Use suggested",
-          onPress: () => {
-            const newReadings = {
-              ...readings,
-              [currentPart.id]: validation.suggested_value,
-            };
-            setReadings(newReadings);
-            stopCapture();
-            resetCapture();
-            setIsLive(false);
-          },
-        },
-        {
-          text: "Keep my reading",
-          onPress: () => {
-            const newReadings = {
-              ...readings,
-              [currentPart.id]: currentReading,
-            };
-            setReadings(newReadings);
-            stopCapture();
-            resetCapture();
-            setIsLive(false);
-          },
-        },
-        {
-          text: "Rescan",
-          style: "cancel",
-        },
-      ]
-    );
-    return;
-  }
+      if (!validation.is_valid) {
+        Alert.alert(
+          "Check measurement ⚠️",
+          `${validation.message}\n\nSuggested: ${validation.suggested_value} cm\n\nDo you want to use the suggested value?`,
+          [
+            {
+              text: "Use suggested",
+              onPress: () => {
+                const newReadings = {
+                  ...readings,
+                  [currentPart.id]: validation.suggested_value,
+                };
+                setReadings(newReadings);
+                stopCapture();
+                resetCapture();
+                setIsLive(false);
+              },
+            },
+            {
+              text: "Keep my reading",
+              onPress: () => {
+                const newReadings = {
+                  ...readings,
+                  [currentPart.id]: currentReading,
+                };
+                setReadings(newReadings);
+                stopCapture();
+                resetCapture();
+                setIsLive(false);
+              },
+            },
+            {
+              text: "Rescan",
+              style: "cancel",
+            },
+          ],
+        );
+        return;
+      }
 
-  // Measurement is valid — proceed normally
-  Alert.alert(
-    "Measurement validated ✅",
-    validation.message,
-    [{ text: "OK" }]
-  );
+      // Measurement is valid — proceed normally
+      Alert.alert("Measurement validated ✅", validation.message, [
+        { text: "OK" },
+      ]);
+    } catch (e) {
+      // If API fails just continue without validation
+      console.log("Validation API unavailable:", e);
+    }
 
-} catch (e) {
-  // If API fails just continue without validation
-  console.log("Validation API unavailable:", e);
-}
-
-const newReadings = {
-  ...readings,
-  [currentPart.id]: currentReading,
-};
-setReadings(newReadings);
-stopCapture();
-resetCapture();
-setIsLive(false);
+    const newReadings = {
+      ...readings,
+      [currentPart.id]: currentReading,
+    };
+    setReadings(newReadings);
+    stopCapture();
+    resetCapture();
+    setIsLive(false);
 
     const nextIndex = measurementParts.findIndex(
       (part, index) => index > currentIndex && !newReadings[part.id],
