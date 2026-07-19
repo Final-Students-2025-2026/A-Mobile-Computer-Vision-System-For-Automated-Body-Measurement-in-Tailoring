@@ -30,8 +30,7 @@
         "backgroundColor": "#C8F04A"
       },
       "permissions": [
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+      "android.permission.CAMERA"
       ]
     },
     "web": {
@@ -40,6 +39,7 @@
     },
     "plugins": [
       "expo-router",
+      "./plugins/withArcore",
       [
         "expo-camera",
         {

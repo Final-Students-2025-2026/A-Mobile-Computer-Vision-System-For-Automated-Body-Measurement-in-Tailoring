@@ -88,12 +88,16 @@ export const measurementParts = [
 export const measurementTypes = measurementParts.map((part) => part.id);
 
 export type MeasurementType = (typeof measurementParts)[number]["id"];
+export type CameraFacing = "front" | "back";
+export type MeasurementSource = "arcore" | "vision" | "calibration";
+export type CapturePhase = "idle" | "preparing" | "capturing" | "done" | "error";
 
 export type CameraFrame = {
   uri: string;
   width?: number;
   height?: number;
-  measurementType: MeasurementType;
+  measurementType?: MeasurementType;
+  cameraFacing?: CameraFacing;
   capturedAt: number;
 };
 
@@ -110,23 +114,83 @@ export type MediaPipePoseResult = {
   imageHeight?: number;
 };
 
+export type BodyContourSample = {
+  widthCm: number;
+  depthCm: number;
+  confidence: number;
+  source: MeasurementSource;
+};
+
 export type MeasurementResult = {
   measurementType: MeasurementType;
   valueCm: number;
   confidence: number;
-  source: "mediapipe" | "calibration";
+  source: MeasurementSource;
   capturedAt: number;
   frameUri: string;
+  contour?: BodyContourSample;
+};
+
+export type BodyScanResult = {
+  readings: Record<MeasurementType, MeasurementResult>;
+  confidence: number;
+  source: MeasurementSource;
+  capturedAt: number;
+  frameUri: string;
+  contours: Partial<Record<MeasurementType, BodyContourSample>>;
 };
 
 export type MediaPipePoseAdapter = (
   frame: CameraFrame,
 ) => Promise<MediaPipePoseResult | null>;
 
+export type BodyScanAdapter = (
+  frame: CameraFrame,
+) => Promise<BodyScanResult | null>;
+
+export type CaptureGuideStep = {
+  key: "prepare" | "left" | "front" | "right" | "done";
+  title: string;
+  detail: string;
+};
+
+export const captureGuideSteps: CaptureGuideStep[] = [
+  {
+    key: "prepare",
+    title: "Preparing...",
+    detail: "Stand still and center your body inside the frame.",
+  },
+  {
+    key: "left",
+    title: "Capturing...",
+    detail: "Turn slowly to your left while keeping your shoulders level.",
+  },
+  {
+    key: "front",
+    title: "Capturing...",
+    detail: "Face forward and hold still for a clean reading.",
+  },
+  {
+    key: "right",
+    title: "Capturing...",
+    detail: "Turn slowly to your right so the full contour is sampled.",
+  },
+  {
+    key: "done",
+    title: "Done",
+    detail: "The scan is complete. Review the measurements below.",
+  },
+];
+
 let poseAdapter: MediaPipePoseAdapter | null = null;
+let scanAdapter: BodyScanAdapter | null = null;
 
 export function registerMediaPipePoseAdapter(adapter: MediaPipePoseAdapter) {
   poseAdapter = adapter;
+}
+
+export function registerBodyScanAdapter(adapter: BodyScanAdapter) {
+  scanAdapter = adapter;
 }
 
 export function getMeasurementPart(type: MeasurementType) {
@@ -136,77 +200,230 @@ export function getMeasurementPart(type: MeasurementType) {
 export async function analyzeMeasurementFrame(
   frame: CameraFrame,
 ): Promise<MeasurementResult> {
+  const scan = await analyzeBodyScanFrame(frame);
+  const type = frame.measurementType ?? "chest";
+  return scan.readings[type] ?? scan.readings.chest;
+}
+
+export async function analyzeBodyScanFrame(
+  frame: CameraFrame,
+): Promise<BodyScanResult> {
+  const nativeScan = scanAdapter ? await scanAdapter(frame) : null;
+
+  if (nativeScan?.readings) {
+    return nativeScan;
+  }
+
   const pose = poseAdapter ? await poseAdapter(frame) : null;
 
   if (pose?.landmarks.length) {
-    return estimateFromPose(frame, pose);
+    return estimateBodyScanFromPose(frame, pose);
   }
 
-  return estimateFromCalibration(frame);
+  return estimateBodyScanFromCalibration(frame);
 }
 
-function estimateFromPose(
+function estimateBodyScanFromPose(
   frame: CameraFrame,
   pose: MediaPipePoseResult,
-): MeasurementResult {
+): BodyScanResult {
   const landmarks = pose.landmarks;
+  const source: MeasurementSource = "vision";
   const visibilityValues = landmarks
     .map((landmark) => landmark.visibility)
     .filter((value): value is number => typeof value === "number");
-  const confidence =
+  const baseConfidence =
     visibilityValues.length > 0
       ? visibilityValues.reduce((sum, value) => sum + value, 0) /
         visibilityValues.length
-      : 0.75;
+      : 0.76;
 
-  const shoulderWidth = distance(landmarks[11], landmarks[12]);
-  const hipWidth = distance(landmarks[23], landmarks[24]);
+  const leftShoulder = landmarks[11];
+  const rightShoulder = landmarks[12];
+  const leftElbow = landmarks[13];
+  const rightElbow = landmarks[14];
+  const leftWrist = landmarks[15];
+  const rightWrist = landmarks[16];
+  const leftHip = landmarks[23];
+  const rightHip = landmarks[24];
+  const leftKnee = landmarks[25];
+  const rightKnee = landmarks[26];
+  const leftAnkle = landmarks[27];
+  const rightAnkle = landmarks[28];
+
+  const shoulderWidth = distance(leftShoulder, rightShoulder);
+  const hipWidth = distance(leftHip, rightHip);
   const torsoHeight = distance(
-    midpoint(landmarks[11], landmarks[12]),
-    midpoint(landmarks[23], landmarks[24]),
+    midpoint(leftShoulder, rightShoulder),
+    midpoint(leftHip, rightHip),
   );
-  const armLength = distance(landmarks[11], landmarks[15]);
-  const legLength = distance(landmarks[23], landmarks[27]);
-  const lowerLeg = distance(landmarks[25], landmarks[27]);
-  const scale = 170;
+  const leftArm = distance(leftShoulder, leftWrist);
+  const rightArm = distance(rightShoulder, rightWrist);
+  const armLength = average([leftArm, rightArm]);
+  const leftLeg = distance(leftHip, leftAnkle);
+  const rightLeg = distance(rightHip, rightAnkle);
+  const legLength = average([leftLeg, rightLeg]);
+  const lowerLeg = average([
+    distance(leftKnee, leftAnkle),
+    distance(rightKnee, rightAnkle),
+  ]);
 
-  const estimates: Record<MeasurementType, number> = {
-    neck: shoulderWidth * scale * 0.85,
-    shoulder: shoulderWidth * scale,
-    chest: shoulderWidth * scale * 1.85,
-    waist: ((shoulderWidth + hipWidth) / 2) * scale * 1.55,
-    hip: hipWidth * scale * 1.75,
-    sleeve: armLength * scale,
-    bicep: shoulderWidth * scale * 0.72,
-    wrist: shoulderWidth * scale * 0.38,
-    inseam: legLength * scale * 0.92,
-    thigh: hipWidth * scale * 0.9,
-    calf: lowerLeg * scale * 0.58,
-    outseam: (torsoHeight + legLength) * scale,
+  const postureBalance = clamp(
+    1 - Math.abs((leftShoulder?.y ?? 0) - (rightShoulder?.y ?? 0)) * 0.85,
+    0.9,
+    1.08,
+  );
+  const curveFactor = clamp(
+    1 + ((hipWidth - shoulderWidth) / Math.max(shoulderWidth, 0.01)) * 0.14,
+    0.92,
+    1.16,
+  );
+  const limbBalance = clamp(1 - Math.abs(leftArm - rightArm) * 0.04, 0.94, 1.05);
+  const bodyScale = 172 * postureBalance;
+  const contourConfidence = clamp(baseConfidence * 0.92, 0.35, 0.98);
+
+  const contours: Partial<Record<MeasurementType, BodyContourSample>> = {
+    neck: createContour(shoulderWidth * bodyScale * 0.82, 0.44, source, contourConfidence),
+    shoulder: createContour(shoulderWidth * bodyScale, 0.36, source, contourConfidence),
+    chest: createContour(
+      shoulderWidth * bodyScale * 1.18 * curveFactor,
+      0.66 + curveFactor * 0.08,
+      source,
+      contourConfidence,
+    ),
+    waist: createContour(
+      ((shoulderWidth + hipWidth) / 2) * bodyScale * 1.02 * curveFactor,
+      0.58 + curveFactor * 0.09,
+      source,
+      contourConfidence,
+    ),
+    hip: createContour(
+      hipWidth * bodyScale * 1.06,
+      0.74 + curveFactor * 0.06,
+      source,
+      contourConfidence,
+    ),
+    sleeve: createContour(armLength * bodyScale * 0.98 * limbBalance, 0.31, source, contourConfidence),
+    bicep: createContour(shoulderWidth * bodyScale * 0.72 * curveFactor, 0.42, source, contourConfidence),
+    wrist: createContour(shoulderWidth * bodyScale * 0.36, 0.28, source, contourConfidence),
+    inseam: createContour(legLength * bodyScale * 0.9, 0.42, source, contourConfidence),
+    thigh: createContour(hipWidth * bodyScale * 0.88 * curveFactor, 0.58, source, contourConfidence),
+    calf: createContour(lowerLeg * bodyScale * 0.57, 0.46, source, contourConfidence),
+    outseam: createContour((torsoHeight + legLength) * bodyScale * 0.95, 0.44, source, contourConfidence),
   };
 
+  const readings = measurementParts.reduce((acc, part) => {
+    const contour = contours[part.id];
+    const value = contour
+      ? ellipseCircumference(contour.widthCm, contour.depthCm)
+      : deriveLinearEstimate(part.id, bodyScale, shoulderWidth, hipWidth, armLength, legLength, lowerLeg, torsoHeight);
+
+    acc[part.id] = {
+      measurementType: part.id,
+      valueCm: clamp(Math.round(value), 12, 220),
+      confidence: contour?.confidence ?? clamp(baseConfidence, 0.35, 0.98),
+      source,
+      capturedAt: frame.capturedAt,
+      frameUri: frame.uri,
+      contour,
+    };
+
+    return acc;
+  }, {} as Record<MeasurementType, MeasurementResult>);
+
+  const confidence =
+    Object.values(readings).reduce((sum, item) => sum + item.confidence, 0) /
+    measurementParts.length;
+
   return {
-    measurementType: frame.measurementType,
-    valueCm: clamp(Math.round(estimates[frame.measurementType]), 12, 220),
+    readings,
     confidence: clamp(confidence, 0, 1),
-    source: "mediapipe",
+    source,
     capturedAt: frame.capturedAt,
     frameUri: frame.uri,
+    contours,
   };
 }
 
-function estimateFromCalibration(frame: CameraFrame): MeasurementResult {
-  const part = getMeasurementPart(frame.measurementType);
+function estimateBodyScanFromCalibration(
+  frame: CameraFrame,
+): BodyScanResult {
   const drift = Math.sin(frame.capturedAt / 900) * 0.8;
+  const source: MeasurementSource = "calibration";
+  const contours: Partial<Record<MeasurementType, BodyContourSample>> = {};
+  const readings = measurementParts.reduce((acc, part, index) => {
+    const value = part.baselineCm + drift + index * 0.05;
+    acc[part.id] = {
+      measurementType: part.id,
+      valueCm: Math.round(value),
+      confidence: 0.42,
+      source,
+      capturedAt: frame.capturedAt,
+      frameUri: frame.uri,
+    };
+    return acc;
+  }, {} as Record<MeasurementType, MeasurementResult>);
 
   return {
-    measurementType: frame.measurementType,
-    valueCm: Math.round(part.baselineCm + drift),
+    readings,
     confidence: 0.42,
-    source: "calibration",
+    source,
     capturedAt: frame.capturedAt,
     frameUri: frame.uri,
+    contours,
   };
+}
+
+function createContour(
+  widthCm: number,
+  depthRatio: number,
+  source: MeasurementSource,
+  confidence: number,
+): BodyContourSample {
+  const safeWidth = Math.max(widthCm, 1);
+  const safeDepth = Math.max(safeWidth * depthRatio, 1);
+
+  return {
+    widthCm: safeWidth,
+    depthCm: safeDepth,
+    confidence: clamp(confidence, 0.35, 0.98),
+    source,
+  };
+}
+
+function deriveLinearEstimate(
+  type: MeasurementType,
+  bodyScale: number,
+  shoulderWidth: number,
+  hipWidth: number,
+  armLength: number,
+  legLength: number,
+  lowerLeg: number,
+  torsoHeight: number,
+) {
+  const estimates: Record<MeasurementType, number> = {
+    neck: shoulderWidth * bodyScale * 0.82,
+    shoulder: shoulderWidth * bodyScale,
+    chest: ellipseCircumference(shoulderWidth * bodyScale * 1.18, shoulderWidth * bodyScale * 0.75),
+    waist: ellipseCircumference(((shoulderWidth + hipWidth) / 2) * bodyScale * 1.02, shoulderWidth * bodyScale * 0.58),
+    hip: ellipseCircumference(hipWidth * bodyScale * 1.06, hipWidth * bodyScale * 0.8),
+    sleeve: armLength * bodyScale,
+    bicep: shoulderWidth * bodyScale * 0.72,
+    wrist: shoulderWidth * bodyScale * 0.36,
+    inseam: legLength * bodyScale * 0.9,
+    thigh: hipWidth * bodyScale * 0.88,
+    calf: lowerLeg * bodyScale * 0.57,
+    outseam: (torsoHeight + legLength) * bodyScale * 0.95,
+  };
+
+  return estimates[type];
+}
+
+function ellipseCircumference(widthCm: number, depthCm: number) {
+  const a = Math.max(widthCm, 1) / 2;
+  const b = Math.max(depthCm, 1) / 2;
+  const h = ((a - b) ** 2) / ((a + b) ** 2);
+  return Math.PI * (a + b) * (1 + (3 * h) / (10 + Math.sqrt(4 - 3 * h)));
 }
 
 function distance(a?: PoseLandmark, b?: PoseLandmark) {
@@ -224,6 +441,11 @@ function midpoint(a?: PoseLandmark, b?: PoseLandmark): PoseLandmark | undefined 
         ? (a.z + b.z) / 2
         : undefined,
   };
+}
+
+function average(values: number[]) {
+  if (!values.length) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 function clamp(value: number, min: number, max: number) {

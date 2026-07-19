@@ -89,10 +89,10 @@ export default function Dashboard() {
         <View style={styles.workflowRow}>
           <View style={styles.workflowCard}>
             <Ruler color={theme.primary} size={20} />
-            <Text style={styles.workflowTitle}>Take measurements</Text>
+            <Text style={styles.workflowTitle}>Live body scan</Text>
             <Text style={styles.workflowText}>
-              Capture body sizes in minutes with our guided measurement process.
-              No tape
+              Capture full-body sizes in one pass with a front-camera scan and
+              near-real-time curve refinement.
             </Text>
           </View>
           <View style={styles.workflowCard}>
@@ -176,7 +176,7 @@ export default function Dashboard() {
             onPress={() => router.push("/measurements/new")}
           >
             <Ruler color={theme.primary} size={18} />
-            <Text style={styles.secondaryBtnText}>Start measuring</Text>
+            <Text style={styles.secondaryBtnText}>Start scan</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
