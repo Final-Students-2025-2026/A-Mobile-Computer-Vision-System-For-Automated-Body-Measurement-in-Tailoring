@@ -1,7 +1,7 @@
 import { Redirect, Tabs } from "expo-router";
 import React from "react";
 import { ActivityIndicator, View } from "react-native";
-import { Home, Users } from "lucide-react-native";
+import { Home, Users, Send, Shirt } from "lucide-react-native";
 import { useAuth } from "../context/AuthContext";
 import { useAppTheme } from "../context/ThemeContext";
 
@@ -50,8 +50,22 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="clients"
         options={{
-          title: "Clients",
+          title: "Profiles",
           tabBarIcon: ({ color }) => <Users color={color} size={22} />,
+        }}
+      />
+      <Tabs.Screen
+        name="sendToTailor"
+        options={{
+          title: "Send",
+          tabBarIcon: ({ color }) => <Send color={color} size={22} />,
+        }}
+      />
+      <Tabs.Screen
+        name="shopByFit"
+        options={{
+          title: "Shop",
+          tabBarIcon: ({ color }) => <Shirt color={color} size={22} />,
         }}
       />
     </Tabs>

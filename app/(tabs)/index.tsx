@@ -85,7 +85,7 @@ export default function Dashboard() {
             <Text style={styles.statValue}>{totalMeasurements}</Text>
           </View>
         </View>
-
+        {/*
         <View style={styles.workflowRow}>
           <View style={styles.workflowCard}>
             <Ruler color={theme.primary} size={20} />
@@ -110,7 +110,7 @@ export default function Dashboard() {
               Keep sizes ready when comparing online clothing charts.
             </Text>
           </View>
-        </View>
+        </View> */}
 
         {/* Recent Clients */}
         <View style={styles.section}>
