@@ -13,13 +13,23 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ChevronLeft, Check, RotateCcw } from "lucide-react-native";
-import { doc, addDoc, updateDoc, collection, serverTimestamp } from "firebase/firestore";
+import {
+  doc,
+  addDoc,
+  updateDoc,
+  collection,
+  serverTimestamp,
+} from "firebase/firestore";
 import { db } from "../../config/firebase";
 import { useAuth } from "../context/AuthContext";
 import { useAppTheme } from "../context/ThemeContext";
 import { useUserProfile } from "../../hooks/useUserProfile";
 import { validateMeasurement } from "../../services/measurementAPI";
-import { analyzeMeasurementFrame, registerMediaPipePoseAdapter } from "../../services/measurementEngine";
+import {
+  analyzeMeasurementFrame,
+  registerMediaPipePoseAdapter,
+} from "../../services/measurementEngine";
+import BodySilhouette from "../../components/BodySilhoutte";
 
 const { width, height } = Dimensions.get("window");
 
@@ -69,8 +79,16 @@ export default function TakeMeasurements() {
       setCountdown(count);
 
       Animated.sequence([
-        Animated.timing(countdownAnim, { toValue: 1.5, duration: 200, useNativeDriver: true }),
-        Animated.timing(countdownAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.timing(countdownAnim, {
+          toValue: 1.5,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(countdownAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
       ]).start();
 
       if (count === 0) {
@@ -134,7 +152,7 @@ export default function TakeMeasurements() {
         wrist: Math.round(frontResult.valueCm * 0.18),
         inseam: Math.round(estimatedHeight * 0.46),
         thigh: Math.round(frontResult.valueCm * 0.61),
-        calf: Math.round(frontResult.valueCm * 0.40),
+        calf: Math.round(frontResult.valueCm * 0.4),
       };
 
       setMeasurements(newMeasurements);
@@ -181,7 +199,10 @@ export default function TakeMeasurements() {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.introContainer}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => router.back()}
+          >
             <ChevronLeft color={theme.text} size={24} />
           </TouchableOpacity>
 
@@ -197,7 +218,7 @@ export default function TakeMeasurements() {
               <Text style={styles.silhouetteLabel}>Front</Text>
             </View>
             <View style={styles.silhouetteSide}>
-              <Text style={styles.silhouetteEmoji}>🧍</Text>
+              <Text style={styles.silhouetteEmoji}>🚶</Text>
               <Text style={styles.silhouetteLabel}>Side</Text>
             </View>
           </View>
@@ -205,7 +226,9 @@ export default function TakeMeasurements() {
           <View style={styles.tips}>
             <Text style={styles.tipsTitle}>For best results:</Text>
             <Text style={styles.tip}>• Wear fitted clothing</Text>
-            <Text style={styles.tip}>• Stand straight with arms slightly out</Text>
+            <Text style={styles.tip}>
+              • Stand straight with arms slightly out
+            </Text>
             <Text style={styles.tip}>• Good lighting, plain background</Text>
             <Text style={styles.tip}>• Place phone 2-3 meters away</Text>
           </View>
@@ -283,12 +306,13 @@ export default function TakeMeasurements() {
   return (
     <SafeAreaView style={styles.container}>
       <CameraView ref={cameraRef} style={styles.camera} facing="back">
-
         {/* Header */}
         <View style={styles.cameraHeader}>
           <TouchableOpacity
             style={styles.backBtn}
-            onPress={() => step === "side" ? setStep("front") : setStep("intro")}
+            onPress={() =>
+              step === "side" ? setStep("front") : setStep("intro")
+            }
           >
             <ChevronLeft color="#fff" size={24} />
           </TouchableOpacity>
@@ -300,20 +324,20 @@ export default function TakeMeasurements() {
 
         {/* Silhouette guide overlay */}
         <View style={styles.silhouetteOverlay}>
-          <Text style={styles.silhouetteGuide}>
-            {step === "front" ? "🧍" : "🚶"}
-          </Text>
-          <Text style={styles.guideText}>
-            {step === "front"
-              ? "Face the camera, arms slightly out"
-              : "Stand sideways to the camera"}
-          </Text>
+          <BodySilhouette
+            view={step === "front" ? "front" : "side"}
+            color="#ffffff"
+            opacity={0.35}
+          />
         </View>
 
         {/* Countdown */}
         {counting && (
           <Animated.View
-            style={[styles.countdownContainer, { transform: [{ scale: countdownAnim }] }]}
+            style={[
+              styles.countdownContainer,
+              { transform: [{ scale: countdownAnim }] },
+            ]}
           >
             <Text style={styles.countdownText}>{countdown}</Text>
           </Animated.View>
@@ -335,7 +359,6 @@ export default function TakeMeasurements() {
             {counting ? `${countdown}...` : "Tap to start timer"}
           </Text>
         </View>
-
       </CameraView>
     </SafeAreaView>
   );
@@ -345,97 +368,172 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: theme.background },
     backBtn: {
-      width: 40, height: 40, borderRadius: 20,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
       backgroundColor: theme.surface,
-      alignItems: "center", justifyContent: "center",
+      alignItems: "center",
+      justifyContent: "center",
     },
 
     // Intro
     introContainer: { flex: 1, padding: 20 },
-    introTitle: { color: theme.text, fontSize: 28, fontWeight: "700", marginTop: 20, marginBottom: 8 },
-    introSubtitle: { color: theme.muted, fontSize: 14, marginBottom: 30, lineHeight: 20 },
-    silhouetteContainer: { flexDirection: "row", justifyContent: "center", gap: 40, marginBottom: 30 },
+    introTitle: {
+      color: theme.text,
+      fontSize: 28,
+      fontWeight: "700",
+      marginTop: 20,
+      marginBottom: 8,
+    },
+    introSubtitle: {
+      color: theme.muted,
+      fontSize: 14,
+      marginBottom: 30,
+      lineHeight: 20,
+    },
+    silhouetteContainer: {
+      flexDirection: "row",
+      justifyContent: "center",
+      gap: 40,
+      marginBottom: 30,
+    },
     silhouetteFront: { alignItems: "center", gap: 8 },
     silhouetteSide: { alignItems: "center", gap: 8 },
     silhouetteEmoji: { fontSize: 80 },
     silhouetteLabel: { color: theme.muted, fontSize: 13, fontWeight: "600" },
-    tips: { backgroundColor: theme.surface, borderRadius: 12, padding: 16, marginBottom: 30, gap: 8 },
-    tipsTitle: { color: theme.text, fontSize: 14, fontWeight: "600", marginBottom: 4 },
+    tips: {
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 30,
+      gap: 8,
+    },
+    tipsTitle: {
+      color: theme.text,
+      fontSize: 14,
+      fontWeight: "600",
+      marginBottom: 4,
+    },
     tip: { color: theme.muted, fontSize: 13, lineHeight: 20 },
     startBtn: {
-      backgroundColor: theme.primary, borderRadius: 30,
-      paddingVertical: 16, alignItems: "center",
+      backgroundColor: theme.primary,
+      borderRadius: 30,
+      paddingVertical: 16,
+      alignItems: "center",
     },
     startBtnText: { color: theme.primaryText, fontSize: 16, fontWeight: "700" },
 
     // Camera
     camera: { flex: 1 },
     cameraHeader: {
-      flexDirection: "row", alignItems: "center",
-      justifyContent: "space-between", padding: 20, paddingTop: 50,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: 20,
+      paddingTop: 50,
     },
     cameraTitle: { color: "#fff", fontSize: 18, fontWeight: "700" },
     silhouetteOverlay: {
-      flex: 1, alignItems: "center", justifyContent: "center", gap: 16,
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 16,
     },
     silhouetteGuide: { fontSize: 120, opacity: 0.4 },
     guideText: {
-      color: "#fff", fontSize: 14, textAlign: "center",
-      backgroundColor: "rgba(0,0,0,0.5)", paddingHorizontal: 16,
-      paddingVertical: 8, borderRadius: 20,
+      color: "#fff",
+      fontSize: 14,
+      textAlign: "center",
+      backgroundColor: "rgba(0,0,0,0.5)",
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
     },
     countdownContainer: {
-      position: "absolute", alignSelf: "center",
-      top: "40%", width: 100, height: 100,
-      borderRadius: 50, backgroundColor: "rgba(0,0,0,0.7)",
-      alignItems: "center", justifyContent: "center",
+      position: "absolute",
+      alignSelf: "center",
+      top: "40%",
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      backgroundColor: "rgba(0,0,0,0.7)",
+      alignItems: "center",
+      justifyContent: "center",
     },
     countdownText: { color: "#fff", fontSize: 48, fontWeight: "700" },
     cameraControls: {
-      padding: 30, alignItems: "center", gap: 12,
+      padding: 30,
+      alignItems: "center",
+      gap: 12,
       backgroundColor: "rgba(0,0,0,0.3)",
     },
     stepIndicator: { color: "#fff", fontSize: 13, opacity: 0.8 },
     captureBtn: {
-      width: 72, height: 72, borderRadius: 36,
+      width: 72,
+      height: 72,
+      borderRadius: 36,
       backgroundColor: "rgba(255,255,255,0.3)",
-      alignItems: "center", justifyContent: "center",
-      borderWidth: 3, borderColor: "#fff",
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 3,
+      borderColor: "#fff",
     },
     captureBtnInner: {
-      width: 56, height: 56, borderRadius: 28,
+      width: 56,
+      height: 56,
+      borderRadius: 28,
       backgroundColor: "#fff",
     },
     captureHint: { color: "#fff", fontSize: 12, opacity: 0.7 },
 
     // Processing
     processingContainer: {
-      flex: 1, alignItems: "center", justifyContent: "center", gap: 16,
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 16,
     },
     processingTitle: { color: theme.text, fontSize: 20, fontWeight: "600" },
     processingSubtitle: { color: theme.muted, fontSize: 14 },
 
     // Results
     resultsHeader: {
-      flexDirection: "row", justifyContent: "space-between",
-      alignItems: "center", padding: 20,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: 20,
     },
     resultsTitle: { color: theme.text, fontSize: 24, fontWeight: "700" },
     resultsGrid: {
-      flexDirection: "row", flexWrap: "wrap",
-      paddingHorizontal: 16, gap: 10, flex: 1,
+      flexDirection: "row",
+      flexWrap: "wrap",
+      paddingHorizontal: 16,
+      gap: 10,
+      flex: 1,
     },
     resultCard: {
-      width: "31%", backgroundColor: theme.surface,
-      borderRadius: 12, padding: 12, alignItems: "center", gap: 4,
+      width: "31%",
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      padding: 12,
+      alignItems: "center",
+      gap: 4,
     },
-    resultLabel: { color: theme.muted, fontSize: 11, textTransform: "capitalize" },
+    resultLabel: {
+      color: theme.muted,
+      fontSize: 11,
+      textTransform: "capitalize",
+    },
     resultValue: { color: theme.primary, fontSize: 18, fontWeight: "700" },
     saveBtn: {
-      margin: 16, backgroundColor: theme.primary,
-      borderRadius: 30, paddingVertical: 16,
-      flexDirection: "row", alignItems: "center",
-      justifyContent: "center", gap: 8,
+      margin: 16,
+      backgroundColor: theme.primary,
+      borderRadius: 30,
+      paddingVertical: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
     },
     saveBtnText: { color: theme.primaryText, fontSize: 15, fontWeight: "700" },
   });
