@@ -18,6 +18,7 @@ export interface Client {
   email?: string;
   phone?: string;
   photoURL?: string;
+  gender?: number; // 1 = Male, 2 = Female
 }
 
 export function useClients() {
@@ -73,6 +74,7 @@ export function useClients() {
           email: d.email || "",
           phone: d.phone || "",
           photoURL: d.photoURL || "",
+          gender: d.gender || 1,
         };
       });
 

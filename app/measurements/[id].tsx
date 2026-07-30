@@ -12,9 +12,10 @@ import {
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { ChevronLeft, Check, RotateCcw } from "lucide-react-native";
+import { ChevronLeft, Check, RotateCcw, SwitchCamera } from "lucide-react-native";
 import {
   doc,
+  getDoc,
   addDoc,
   updateDoc,
   collection,
@@ -24,12 +25,13 @@ import { db } from "../../config/firebase";
 import { useAuth } from "../context/AuthContext";
 import { useAppTheme } from "../context/ThemeContext";
 import { useUserProfile } from "../../hooks/useUserProfile";
-import { validateMeasurement } from "../../services/measurementAPI";
 import {
   analyzeMeasurementFrame,
   registerMediaPipePoseAdapter,
 } from "../../services/measurementEngine";
-import BodySilhouette from "../../components/BodySilhoutte";
+import BodySilhouette, { BodyGender } from "../../components/BodySilhoutte";
+import { fetchBodyMeasurements } from "../../services/measurmentCaptureApi";
+import { validateMeasurement, ValidationResult } from "../../services/measurementAPI";
 
 const { width, height } = Dimensions.get("window");
 
@@ -67,7 +69,32 @@ export default function TakeMeasurements() {
   const [sidePhoto, setSidePhoto] = useState<string | null>(null);
   const [measurements, setMeasurements] = useState<Measurements>({});
   const [saving, setSaving] = useState(false);
+  const [facing, setFacing] = useState<"front" | "back">("back");
+  const [clientGender, setClientGender] = useState<BodyGender>("male");
+  const [clientAge, setClientAge] = useState<number | null>(null);
+  const [clientWeight, setClientWeight] = useState<number | null>(null);
+  const [validations, setValidations] = useState<Record<string, ValidationResult>>({});
   const countdownAnim = useRef(new Animated.Value(1)).current;
+
+  React.useEffect(() => {
+    if (!clientId || clientId === "new") return;
+
+    const fetchClientInfo = async () => {
+      try {
+        const clientDoc = await getDoc(doc(db, "clients", clientId));
+        if (clientDoc.exists()) {
+          const data = clientDoc.data();
+          setClientGender(data.gender === 2 ? "female" : "male");
+          setClientAge(typeof data.age === "number" ? data.age : null);
+          setClientWeight(typeof data.weight === "number" ? data.weight : null);
+        }
+      } catch (e) {
+        // keep defaults if this fails
+      }
+    };
+
+    fetchClientInfo();
+  }, [clientId]);
 
   const startCountdown = () => {
     setCounting(true);
@@ -121,45 +148,110 @@ export default function TakeMeasurements() {
     }
   };
 
+  // Cross-checks the directly-captured values (chest, waist) against your
+  // trained model at measure-ai-api.onrender.com. The rest of the fields
+  // (bicep, wrist, calf, etc.) are ratio-derived estimates, not raw AR
+  // readings, so there's nothing meaningful to validate them against.
+  const runValidation = async (m: Measurements) => {
+    const genderCode = clientGender === "female" ? 2 : 1;
+    const heightCm = profile?.height || m.height || 170;
+    const weightKg = clientWeight || profile?.weight || 70;
+    const heightM = heightCm / 100;
+    const bmi = Math.round((weightKg / (heightM * heightM)) * 10) / 10;
+
+    const bodyParts: { key: keyof Measurements; body_part: string }[] = [
+      { key: "chest", body_part: "chest" },
+      { key: "waist", body_part: "waist" },
+    ];
+
+    const results: Record<string, ValidationResult> = {};
+
+    await Promise.all(
+      bodyParts.map(async ({ key, body_part }) => {
+        const value = m[key];
+        if (typeof value !== "number") return;
+
+        try {
+          const result = await validateMeasurement({
+            height: heightCm,
+            gender: genderCode,
+            age: clientAge || profile?.age || 30,
+            weight: weightKg,
+            bmi,
+            ar_measurement: value,
+            body_part,
+            unit: "cm",
+          });
+          results[key] = result;
+        } catch (e) {
+          // Validation is a secondary check — if the model's unreachable,
+          // just skip it rather than blocking the measurement flow.
+        }
+      }),
+    );
+
+    setValidations(results);
+  };
+
   const processPhotos = async (frontUri: string, sideUri: string) => {
+    const estimatedHeightFallback = profile?.height || 170;
+
     try {
-      // Analyze front photo
-      const frontResult = await analyzeMeasurementFrame({
-        uri: frontUri,
-        measurementType: "chest",
-        capturedAt: Date.now(),
+      // Real measurements from the Live-Measurements-Api Flask server —
+      // see services/measurementAPI.ts for what it needs to be running.
+      const apiMeasurements = await fetchBodyMeasurements({
+        frontUri,
+        sideUri,
+        heightCm: estimatedHeightFallback,
       });
 
-      // Analyze side photo
-      const sideResult = await analyzeMeasurementFrame({
-        uri: sideUri,
-        measurementType: "waist",
-        capturedAt: Date.now(),
-      });
-
-      // Use user height if available otherwise estimate
-      const estimatedHeight = profile?.height || frontResult.valueCm * 7.5;
-
-      const newMeasurements: Measurements = {
-        height: Math.round(estimatedHeight),
-        chest: frontResult.valueCm,
-        waist: sideResult.valueCm,
-        hip: Math.round(frontResult.valueCm * 1.05),
-        shoulder: Math.round(frontResult.valueCm * 0.47),
-        neck: Math.round(frontResult.valueCm * 0.41),
-        sleeve: Math.round(estimatedHeight * 0.36),
-        bicep: Math.round(frontResult.valueCm * 0.35),
-        wrist: Math.round(frontResult.valueCm * 0.18),
-        inseam: Math.round(estimatedHeight * 0.46),
-        thigh: Math.round(frontResult.valueCm * 0.61),
-        calf: Math.round(frontResult.valueCm * 0.4),
-      };
-
-      setMeasurements(newMeasurements);
+      setMeasurements(apiMeasurements);
       setStep("results");
-    } catch (e) {
-      Alert.alert("Error", "Could not process photos. Please try again.");
-      setStep("intro");
+      runValidation(apiMeasurements);
+    } catch (apiError: any) {
+      // Server not running / unreachable — fall back to the rough
+      // on-device heuristic so the flow still completes during dev.
+      try {
+        const frontResult = await analyzeMeasurementFrame({
+          uri: frontUri,
+          measurementType: "chest",
+          capturedAt: Date.now(),
+        });
+
+        const sideResult = await analyzeMeasurementFrame({
+          uri: sideUri,
+          measurementType: "waist",
+          capturedAt: Date.now(),
+        });
+
+        const estimatedHeight = profile?.height || frontResult.valueCm * 7.5;
+
+        const fallbackMeasurements: Measurements = {
+          height: Math.round(estimatedHeight),
+          chest: frontResult.valueCm,
+          waist: sideResult.valueCm,
+          hip: Math.round(frontResult.valueCm * 1.05),
+          shoulder: Math.round(frontResult.valueCm * 0.47),
+          neck: Math.round(frontResult.valueCm * 0.41),
+          sleeve: Math.round(estimatedHeight * 0.36),
+          bicep: Math.round(frontResult.valueCm * 0.35),
+          wrist: Math.round(frontResult.valueCm * 0.18),
+          inseam: Math.round(estimatedHeight * 0.46),
+          thigh: Math.round(frontResult.valueCm * 0.61),
+          calf: Math.round(frontResult.valueCm * 0.4),
+        };
+
+        setMeasurements(fallbackMeasurements);
+        setStep("results");
+        runValidation(fallbackMeasurements);
+        Alert.alert(
+          "Using rough estimate",
+          `Couldn't reach the measurement server (${apiError.message || "no connection"}), so these numbers are a rough on-device guess, not real AI measurements.`,
+        );
+      } catch (e) {
+        Alert.alert("Error", "Could not process photos. Please try again.");
+        setStep("intro");
+      }
     }
   };
 
@@ -214,11 +306,23 @@ export default function TakeMeasurements() {
           {/* Silhouette */}
           <View style={styles.silhouetteContainer}>
             <View style={styles.silhouetteFront}>
-              <Text style={styles.silhouetteEmoji}>🧍</Text>
+              <BodySilhouette
+                view="front"
+                gender={clientGender}
+                color={theme.text}
+                opacity={0.85}
+                size="small"
+              />
               <Text style={styles.silhouetteLabel}>Front</Text>
             </View>
             <View style={styles.silhouetteSide}>
-              <Text style={styles.silhouetteEmoji}>🚶</Text>
+              <BodySilhouette
+                view="side"
+                gender={clientGender}
+                color={theme.text}
+                opacity={0.85}
+                size="small"
+              />
               <Text style={styles.silhouetteLabel}>Side</Text>
             </View>
           </View>
@@ -276,12 +380,29 @@ export default function TakeMeasurements() {
         </View>
 
         <View style={styles.resultsGrid}>
-          {Object.entries(measurements).map(([key, value]) => (
-            <View key={key} style={styles.resultCard}>
-              <Text style={styles.resultLabel}>{key}</Text>
-              <Text style={styles.resultValue}>{value} cm</Text>
-            </View>
-          ))}
+          {Object.entries(measurements).map(([key, value]) => {
+            const validation = validations[key];
+            return (
+              <View key={key} style={styles.resultCard}>
+                <Text style={styles.resultLabel}>{key}</Text>
+                <Text style={styles.resultValue}>{value} cm</Text>
+                {validation && (
+                  <Text
+                    style={[
+                      styles.validationText,
+                      validation.is_valid
+                        ? styles.validationOk
+                        : styles.validationWarn,
+                    ]}
+                  >
+                    {validation.is_valid
+                      ? `✓ Verified (${validation.confidence})`
+                      : `⚠ Model suggests ${validation.suggested_value}cm`}
+                  </Text>
+                )}
+              </View>
+            );
+          })}
         </View>
 
         <TouchableOpacity
@@ -305,7 +426,7 @@ export default function TakeMeasurements() {
   // CAMERA SCREEN (front or side)
   return (
     <SafeAreaView style={styles.container}>
-      <CameraView ref={cameraRef} style={styles.camera} facing="back">
+      <CameraView ref={cameraRef} style={styles.camera} facing={facing}>
         {/* Header */}
         <View style={styles.cameraHeader}>
           <TouchableOpacity
@@ -319,13 +440,19 @@ export default function TakeMeasurements() {
           <Text style={styles.cameraTitle}>
             {step === "front" ? "Front view" : "Side view"}
           </Text>
-          <View style={{ width: 40 }} />
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => setFacing((current) => (current === "back" ? "front" : "back"))}
+          >
+            <SwitchCamera color="#fff" size={20} />
+          </TouchableOpacity>
         </View>
 
         {/* Silhouette guide overlay */}
         <View style={styles.silhouetteOverlay}>
           <BodySilhouette
             view={step === "front" ? "front" : "side"}
+            gender={clientGender}
             color="#ffffff"
             opacity={0.35}
           />
@@ -399,7 +526,6 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
     },
     silhouetteFront: { alignItems: "center", gap: 8 },
     silhouetteSide: { alignItems: "center", gap: 8 },
-    silhouetteEmoji: { fontSize: 80 },
     silhouetteLabel: { color: theme.muted, fontSize: 13, fontWeight: "600" },
     tips: {
       backgroundColor: theme.surface,
@@ -525,6 +651,9 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
       textTransform: "capitalize",
     },
     resultValue: { color: theme.primary, fontSize: 18, fontWeight: "700" },
+    validationText: { fontSize: 10, marginTop: 4, fontWeight: "600" },
+    validationOk: { color: "#4caf50" },
+    validationWarn: { color: "#e0a800" },
     saveBtn: {
       margin: 16,
       backgroundColor: theme.primary,

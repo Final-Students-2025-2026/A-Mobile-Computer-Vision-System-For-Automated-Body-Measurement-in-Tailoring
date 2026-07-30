@@ -33,6 +33,19 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
+      [
+  "react-native-vision-camera",
+  {
+    "cameraPermissionText": "Allow Measure AI to use your camera for on-device pose detection.",
+    "enableMicrophonePermission": false
+  }
+],
+[
+  "react-native-mediapipe-posedetection",
+  {
+    "assetsPaths": ["./assets/models/"]
+  }
+],
       "expo-router",
       [
         "expo-camera",
