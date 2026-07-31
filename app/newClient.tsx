@@ -65,7 +65,9 @@ export default function NewClient() {
     }
 
     if (!photoBase64) {
-      throw new Error("Could not read the selected photo. Please choose another image.");
+      throw new Error(
+        "Could not read the selected photo. Please choose another image.",
+      );
     }
 
     return `data:${photoMimeType};base64,${photoBase64}`;
@@ -79,7 +81,7 @@ export default function NewClient() {
       const photoURL = getPhotoDataUrl();
 
       await addDoc(collection(db, "clients"), {
-        userId: user.uid,           // ties client to this tailor
+        userId: user.uid, // ties client to this tailor
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim(),
@@ -177,47 +179,52 @@ export default function NewClient() {
 
 const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
   StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.background },
-  scroll: { padding: 20 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 30,
-  },
-  headerTitle: { color: theme.text, fontSize: 18, fontWeight: "500" },
-  avatarSection: { alignItems: "center", marginBottom: 30 },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: theme.surface,
-    borderWidth: 2,
-    borderColor: theme.primary,
-    borderStyle: "dashed",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-    overflow: "hidden",
-  },
-  avatarImage: { width: "100%", height: "100%" },
-  avatarText: { color: theme.primary, fontSize: 28, fontWeight: "300" },
-  avatarHint: { color: theme.muted, fontSize: 13 },
-  form: { marginBottom: 30 },
-  label: { color: theme.subtle, fontSize: 13, marginBottom: 8, marginTop: 16 },
-  input: {
-    backgroundColor: theme.surface,
-    borderRadius: 12,
-    padding: 14,
-    color: theme.text,
-    fontSize: 14,
-  },
-  saveBtn: {
-    backgroundColor: theme.primary,
-    borderRadius: 30,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  saveBtnDisabled: { opacity: 0.4 },
-  saveBtnText: { color: theme.primaryText, fontSize: 15, fontWeight: "600" },
-});
+    container: { flex: 1, backgroundColor: theme.background },
+    scroll: { padding: 20 },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 30,
+    },
+    headerTitle: { color: theme.text, fontSize: 18, fontWeight: "500" },
+    avatarSection: { alignItems: "center", marginBottom: 30 },
+    avatar: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: theme.surface,
+      borderWidth: 2,
+      borderColor: theme.primary,
+      borderStyle: "dashed",
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 8,
+      overflow: "hidden",
+    },
+    avatarImage: { width: "100%", height: "100%" },
+    avatarText: { color: theme.primary, fontSize: 28, fontWeight: "300" },
+    avatarHint: { color: theme.muted, fontSize: 13 },
+    form: { marginBottom: 30 },
+    label: {
+      color: theme.subtle,
+      fontSize: 13,
+      marginBottom: 8,
+      marginTop: 16,
+    },
+    input: {
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      padding: 14,
+      color: theme.text,
+      fontSize: 14,
+    },
+    saveBtn: {
+      backgroundColor: theme.primary,
+      borderRadius: 30,
+      paddingVertical: 16,
+      alignItems: "center",
+    },
+    saveBtnDisabled: { opacity: 0.4 },
+    saveBtnText: { color: theme.primaryText, fontSize: 15, fontWeight: "600" },
+  });

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Haptics from "expo-haptics";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import {
-  analyzeBodyScanFrame,
+  analyzeBodyScanSession,
   BodyScanResult,
   BodyContourSample,
   captureGuideSteps,
@@ -10,14 +10,16 @@ import {
   MeasurementResult,
   MeasurementType,
   CameraFacing,
+  CameraFrame,
+  CaptureView,
   CapturePhase,
 } from "../services/measurementEngine";
 
 type CaptureStatus = "idle" | "permission-needed" | "ready" | "error";
 
-const SCAN_INTERVAL_MS = 900;
+const SCAN_INTERVAL_MS = 350;
 const GUIDE_STEP_INTERVAL_MS = 2200;
-const PREPARING_DELAY_MS = 900;
+const PREPARING_DELAY_MS = 1500;
 
 export function useMeasurementCapture() {
   const cameraRef = useRef<CameraView | null>(null);
@@ -26,6 +28,13 @@ export function useMeasurementCapture() {
   const prepareTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const captureInFlightRef = useRef(false);
   const latestScanRef = useRef<BodyScanResult | null>(null);
+  const capturedFramesRef = useRef<Record<CaptureView, CameraFrame[]>>({
+    front: [],
+    left: [],
+    right: [],
+  });
+  const knownHeightCmRef = useRef<number | null>(null);
+  const knownWeightKgRef = useRef<number | null>(null);
   const currentFocusRef = useRef<MeasurementType>("chest");
   const cameraFacingRef = useRef<CameraFacing>("front");
   const guideIndexRef = useRef(0);
@@ -89,7 +98,7 @@ export function useMeasurementCapture() {
 
     try {
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.35,
+        quality: 0.8,
         skipProcessing: true,
         shutterSound: false,
       });
@@ -98,17 +107,25 @@ export function useMeasurementCapture() {
         return latestScanRef.current;
       }
 
-      const next = await analyzeBodyScanFrame({
+      const captureView = captureGuideSteps[guideIndexRef.current]?.key;
+      if (
+        captureView !== "left" &&
+        captureView !== "front" &&
+        captureView !== "right"
+      ) {
+        return latestScanRef.current;
+      }
+
+      capturedFramesRef.current[captureView].push({
         uri: photo.uri,
         width: photo.width,
         height: photo.height,
         measurementType: currentFocusRef.current,
         cameraFacing: cameraFacingRef.current,
+        captureView,
         capturedAt: Date.now(),
       });
-
-      setError(null);
-      return applyScan(next);
+      return latestScanRef.current;
     } catch (e: any) {
       setCapturePhase("error");
       setStatus("error");
@@ -117,15 +134,53 @@ export function useMeasurementCapture() {
     } finally {
       captureInFlightRef.current = false;
     }
-  }, [applyScan]);
+  }, []);
 
   const finishScan = useCallback(async () => {
     clearTimers();
-    guideIndexRef.current = captureGuideSteps.length - 1;
-    setGuideIndex(captureGuideSteps.length - 1);
-    setCapturePhase("done");
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [clearTimers]);
+    const knownHeightCm = knownHeightCmRef.current;
+    const front = capturedFramesRef.current.front;
+    if (!knownHeightCm || !front) {
+      setCapturePhase("error");
+      setStatus("error");
+      setError(
+        "A clear front full-body frame is required to calibrate this scan. Please try again.",
+      );
+      return;
+    }
+
+    try {
+      const front = bestFrame(capturedFramesRef.current.front);
+
+      const left = bestFrame(capturedFramesRef.current.left);
+
+      const right = bestFrame(capturedFramesRef.current.right);
+
+      if (!knownHeightCm || !front) {
+      }
+      const next = await analyzeBodyScanSession({
+        knownHeightCm,
+
+        knownWeightKg: knownWeightKgRef.current ?? undefined,
+
+        front,
+
+        left,
+
+        right,
+      });
+      applyScan(next);
+      guideIndexRef.current = captureGuideSteps.length - 1;
+      setGuideIndex(captureGuideSteps.length - 1);
+      setCapturePhase("done");
+      setError(null);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      setCapturePhase("error");
+      setStatus("error");
+      setError(e.message || "Could not produce a calibrated body scan.");
+    }
+  }, [applyScan, clearTimers]);
 
   const advanceGuide = useCallback(async () => {
     const nextIndex = Math.min(
@@ -155,6 +210,15 @@ export function useMeasurementCapture() {
 
   const resetCapture = useCallback(() => {
     latestScanRef.current = null;
+    capturedFramesRef.current = {
+      front: [],
+
+      left: [],
+
+      right: [],
+    };
+    knownHeightCmRef.current = null;
+    knownWeightKgRef.current = null;
     setScan(null);
     setError(null);
     setCapturePhase("idle");
@@ -175,35 +239,61 @@ export function useMeasurementCapture() {
     return granted;
   }, [permission?.granted, requestPermission]);
 
-  const startCapture = useCallback(async () => {
-    const canUseCamera = await ensureCameraPermission();
-    if (!canUseCamera) return false;
+  const startCapture = useCallback(
+    async (knownHeightCm?: number, knownWeightKg?: number) => {
+      if (!knownHeightCm || knownHeightCm < 80 || knownHeightCm > 260) {
+        setError(
+          "Add a valid height in Body info before starting a calibrated scan.",
+        );
+        setStatus("error");
+        return false;
+      }
+      if (!knownWeightKg || knownWeightKg < 25 || knownWeightKg > 260) {
+        setError("Add a valid weight before starting a calibrated scan.");
+        setStatus("error");
+        return false;
+      }
+      const canUseCamera = await ensureCameraPermission();
+      if (!canUseCamera) return false;
 
-    clearTimers();
-    setError(null);
-    setStatus("ready");
-    setCapturePhase("preparing");
-    guideIndexRef.current = 0;
-    setGuideIndex(0);
-    hasCompletedFeedbackRef.current = false;
+      clearTimers();
+      setError(null);
+      setStatus("ready");
+      setCapturePhase("preparing");
+      latestScanRef.current = null;
+      setScan(null);
+      capturedFramesRef.current = {
+        front: [],
 
-    await Haptics.selectionAsync();
+        left: [],
 
-    prepareTimerRef.current = setTimeout(() => {
-      setCapturePhase("capturing");
-      void captureScanFrame();
+        right: [],
+      };
+      knownHeightCmRef.current = knownHeightCm;
+      knownWeightKgRef.current = knownWeightKg;
+      guideIndexRef.current = 0;
+      setGuideIndex(0);
+      hasCompletedFeedbackRef.current = false;
 
-      intervalRef.current = setInterval(() => {
+      await Haptics.selectionAsync();
+
+      prepareTimerRef.current = setTimeout(() => {
+        setCapturePhase("capturing");
         void captureScanFrame();
-      }, SCAN_INTERVAL_MS);
 
-      guideTimerRef.current = setInterval(() => {
-        void advanceGuide();
-      }, GUIDE_STEP_INTERVAL_MS);
-    }, PREPARING_DELAY_MS);
+        intervalRef.current = setInterval(() => {
+          void captureScanFrame();
+        }, SCAN_INTERVAL_MS);
 
-    return true;
-  }, [advanceGuide, captureScanFrame, clearTimers, ensureCameraPermission]);
+        guideTimerRef.current = setInterval(() => {
+          void advanceGuide();
+        }, GUIDE_STEP_INTERVAL_MS);
+      }, PREPARING_DELAY_MS);
+
+      return true;
+    },
+    [advanceGuide, captureScanFrame, clearTimers, ensureCameraPermission],
+  );
 
   useEffect(() => {
     if (!permission) return;
@@ -224,14 +314,11 @@ export function useMeasurementCapture() {
     captureGuideSteps.length > 1
       ? guideIndex / (captureGuideSteps.length - 1)
       : 0;
-  const scanProgress = clamp(
-    Math.max(coverageProgress, guideProgress),
-    0,
-    1,
-  );
+  const scanProgress = clamp(Math.max(coverageProgress, guideProgress), 0, 1);
   const captureStep = captureGuideSteps[guideIndex] ?? captureGuideSteps[0];
   const captureState: CapturePhase = capturePhase;
-  const isScanning = capturePhase === "preparing" || capturePhase === "capturing";
+  const isScanning =
+    capturePhase === "preparing" || capturePhase === "capturing";
 
   useEffect(() => {
     if (capturePhase === "done" && !hasCompletedFeedbackRef.current) {
@@ -274,51 +361,62 @@ export function useMeasurementCapture() {
   };
 }
 
-function blendScans(previous: BodyScanResult, next: BodyScanResult): BodyScanResult {
-  const readings = measurementParts.reduce((acc, part) => {
-    const previousReading = previous.readings[part.id];
-    const nextReading = next.readings[part.id];
-    acc[part.id] = blendMeasurement(previousReading, nextReading);
-    return acc;
-  }, {} as Record<MeasurementType, MeasurementResult>);
-
-  const contours = measurementParts.reduce((acc, part) => {
-    const previousContour = previous.contours[part.id];
-    const nextContour = next.contours[part.id];
-
-    if (!previousContour) {
-      if (nextContour) acc[part.id] = nextContour;
+function blendScans(
+  previous: BodyScanResult,
+  next: BodyScanResult,
+): BodyScanResult {
+  const readings = measurementParts.reduce(
+    (acc, part) => {
+      const previousReading = previous.readings[part.id];
+      const nextReading = next.readings[part.id];
+      acc[part.id] = blendMeasurement(previousReading, nextReading);
       return acc;
-    }
+    },
+    {} as Record<MeasurementType, MeasurementResult>,
+  );
 
-    if (!nextContour) {
-      acc[part.id] = previousContour;
+  const contours = measurementParts.reduce(
+    (acc, part) => {
+      const previousContour = previous.contours[part.id];
+      const nextContour = next.contours[part.id];
+
+      if (!previousContour) {
+        if (nextContour) acc[part.id] = nextContour;
+        return acc;
+      }
+
+      if (!nextContour) {
+        acc[part.id] = previousContour;
+        return acc;
+      }
+
+      acc[part.id] = {
+        widthCm: Math.round(
+          previousContour.widthCm +
+            (nextContour.widthCm - previousContour.widthCm) * 0.45,
+        ),
+        depthCm: Math.round(
+          previousContour.depthCm +
+            (nextContour.depthCm - previousContour.depthCm) * 0.45,
+        ),
+        confidence: clamp(
+          previousContour.confidence * 0.35 + nextContour.confidence * 0.65,
+          0,
+          1,
+        ),
+        source: nextContour.source,
+      };
+
       return acc;
-    }
-
-    acc[part.id] = {
-      widthCm: Math.round(
-        previousContour.widthCm +
-          (nextContour.widthCm - previousContour.widthCm) * 0.45,
-      ),
-      depthCm: Math.round(
-        previousContour.depthCm +
-          (nextContour.depthCm - previousContour.depthCm) * 0.45,
-      ),
-      confidence: clamp(
-        previousContour.confidence * 0.35 + nextContour.confidence * 0.65,
-        0,
-        1,
-      ),
-      source: nextContour.source,
-    };
-
-    return acc;
-  }, {} as Partial<Record<MeasurementType, BodyContourSample>>);
+    },
+    {} as Partial<Record<MeasurementType, BodyContourSample>>,
+  );
 
   const confidence =
-    Object.values(readings).reduce((sum, reading) => sum + reading.confidence, 0) /
-    measurementParts.length;
+    Object.values(readings).reduce(
+      (sum, reading) => sum + reading.confidence,
+      0,
+    ) / measurementParts.length;
 
   return {
     ...next,
@@ -353,6 +451,9 @@ function blendMeasurement(
       1,
     ),
   };
+}
+function bestFrame(frames: CameraFrame[]) {
+  return frames.sort((a, b) => b.capturedAt - a.capturedAt)[0];
 }
 
 function clamp(value: number, min: number, max: number) {

@@ -1,25 +1,17 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
-  ScrollView,
   StyleSheet,
-  Modal,
   ActivityIndicator,
   Alert,
+  ScrollView,
 } from "react-native";
-import { CameraView } from "expo-camera";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { CameraView, useCameraPermissions } from "expo-camera";
+import { StatusBar } from "expo-status-bar";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import {
-  Camera,
-  Check,
-  ChevronLeft,
-  Plus,
-  Ruler,
-  Users,
-} from "lucide-react-native";
+import { Check, ChevronLeft, RotateCcw, SwitchCamera } from "lucide-react-native";
 import {
   doc,
   addDoc,
@@ -30,180 +22,146 @@ import {
 import { db } from "../../config/firebase";
 import { useAuth } from "../context/AuthContext";
 import { useAppTheme } from "../context/ThemeContext";
-import { useMeasurementCapture } from "../../hooks/useMeasurementCapture";
-import { measurementParts } from "../../services/measurementEngine";
-import { validateMeasurement } from "../../services/measurementAPI";
 import { useUserProfile } from "../../hooks/useUserProfile";
+import {
+  analyzeBodyScanSession,
+  CameraFacing,
+  CameraFrame,
+  measurementParts,
+  MeasurementType,
+} from "../../services/measurementEngine";
+
+type Step = "instructions" | "camera" | "processing" | "results";
+type ScanView = "front" | "side";
+
+type Measurements = Partial<Record<MeasurementType, number>> & {
+  height?: number;
+};
 
 export default function TakeMeasurements() {
-  const { profile } = useUserProfile();
   const router = useRouter();
   const { theme } = useAppTheme();
   const styles = createStyles(theme);
   const { id } = useLocalSearchParams();
   const clientId = Array.isArray(id) ? id[0] : id;
-  const hasSelectedClient =
-    Boolean(clientId) && clientId !== "new" && clientId !== "[id]";
   const { user } = useAuth();
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [readings, setReadings] = useState<Record<string, number>>({});
-  const [isLive, setIsLive] = useState(false);
-  const [showClientModal, setShowClientModal] = useState(false);
+  const { profile, loading: profileLoading } = useUserProfile();
+  const [permission, requestPermission] = useCameraPermissions();
+  const cameraRef = useRef<CameraView>(null);
+  const [step, setStep] = useState<Step>("instructions");
+  const [scanView, setScanView] = useState<ScanView>("front");
+  const [frontFrame, setFrontFrame] = useState<CameraFrame | null>(null);
+  const [cameraFacing, setCameraFacing] = useState<CameraFacing>("front");
+  const [measurements, setMeasurements] = useState<Measurements>({});
+  const [confidence, setConfidence] = useState(0);
   const [saving, setSaving] = useState(false);
-  const {
-    cameraRef,
-    status,
-    currentReading,
-    confidence,
-    source,
-    error,
-    startCapture,
-    stopCapture,
-    resetCapture,
-  } = useMeasurementCapture();
+  const [capturing, setCapturing] = useState(false);
 
-  const currentPart = measurementParts[currentIndex];
-  const completedCount = Object.keys(readings).length;
-  const categories = useMemo(
-    () => Array.from(new Set(measurementParts.map((part) => part.category))),
-    [],
-  );
-  const engineLabel =
-    source === "mediapipe"
-      ? `MediaPipe confidence ${Math.round(confidence * 100)}%`
-      : "Live camera analysis";
+  const hasBodyInfo =
+    Boolean(profile?.height && profile.height >= 80 && profile.height <= 260) &&
+    Boolean(profile?.weight && profile.weight >= 25 && profile.weight <= 260);
 
-  useEffect(() => {
-    return () => stopCapture();
-  }, [stopCapture]);
+  const ensurePermission = async () => {
+    if (permission?.granted) return true;
+    const response = await requestPermission();
+    return Boolean(response.granted);
+  };
 
-  const beginMeasuring = async () => {
-    if (!hasSelectedClient) {
-      setShowClientModal(true);
+  const startGuidedScan = async () => {
+    if (capturing || profileLoading) return;
+
+    if (!hasBodyInfo || !profile?.height || !profile?.weight) {
+      Alert.alert(
+        "Body info needed",
+        "Please add your height and weight first. This helps calibrate the scan.",
+        [{ text: "OK", onPress: () => router.push("/bodyInfo") }],
+      );
       return;
     }
 
-    const started = await startCapture(currentPart.id);
+    setFrontFrame(null);
+    setScanView("front");
+    setStep("camera");
+  };
 
-    if (!started) {
+  const captureFullBodyScan = async () => {
+    if (capturing || profileLoading || !profile?.height || !profile?.weight) {
+      return;
+    }
+
+    const canUseCamera = await ensurePermission();
+    if (!canUseCamera) {
       Alert.alert(
         "Camera permission needed",
-        "Allow camera access to capture body measurement frames.",
+        "Please allow camera access so Measure AI can scan your full body.",
       );
       return;
     }
 
-    setIsLive(true);
-  };
+    if (!cameraRef.current) return;
 
-  const handleSelectPart = async (index: number) => {
-    setCurrentIndex(index);
-    stopCapture();
-    resetCapture();
-    setIsLive(false);
-  };
-
-  const handleSelectExisting = () => {
-    setShowClientModal(false);
-    router.push("/(tabs)/clients");
-  };
-
-  const handleAddNew = () => {
-    setShowClientModal(false);
-    router.push("/newClient");
-  };
-
-  const saveMeasurement = async () => {
-    if (!currentReading) {
-      Alert.alert(
-        "No reading yet",
-        "Keep the body part in frame until a measurement reading appears.",
-      );
-      return;
-    }
-
-    // Validate measurement via API first
     try {
-      const validation = await validateMeasurement({
-        height: profile?.height ?? 170,
-        gender: profile?.gender ?? 1,
-        age: profile?.age ?? 25,
-        weight: profile?.weight ?? 70,
-        bmi: profile?.bmi ?? 22.5,
-        ar_measurement: currentReading,
-        body_part: currentPart.id,
-        unit: "cm",
+      setCapturing(true);
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.75,
+        skipProcessing: false,
+        shutterSound: false,
       });
 
-      if (!validation.is_valid) {
-        Alert.alert(
-          "Check measurement ⚠️",
-          `${validation.message}\n\nSuggested: ${validation.suggested_value} cm\n\nDo you want to use the suggested value?`,
-          [
-            {
-              text: "Use suggested",
-              onPress: () => {
-                const newReadings = {
-                  ...readings,
-                  [currentPart.id]: validation.suggested_value,
-                };
-                setReadings(newReadings);
-                stopCapture();
-                resetCapture();
-                setIsLive(false);
-              },
-            },
-            {
-              text: "Keep my reading",
-              onPress: () => {
-                const newReadings = {
-                  ...readings,
-                  [currentPart.id]: currentReading,
-                };
-                setReadings(newReadings);
-                stopCapture();
-                resetCapture();
-                setIsLive(false);
-              },
-            },
-            {
-              text: "Rescan",
-              style: "cancel",
-            },
-          ],
-        );
+      const frame: CameraFrame = {
+        uri: photo.uri,
+        width: photo.width,
+        height: photo.height,
+        cameraFacing,
+        captureView: scanView === "front" ? "front" : "right",
+        capturedAt: Date.now(),
+      };
+
+      if (scanView === "front") {
+        setFrontFrame(frame);
+        setScanView("side");
         return;
       }
 
-      // Measurement is valid — proceed normally
-      Alert.alert("Measurement validated ✅", validation.message, [
-        { text: "OK" },
-      ]);
-    } catch (e) {
-      // If API fails just continue without validation
-      console.log("Validation API unavailable:", e);
+      if (!frontFrame) {
+        setScanView("front");
+        Alert.alert("Front scan needed", "Please capture the front view first.");
+        return;
+      }
+
+      setStep("processing");
+      const scan = await analyzeBodyScanSession({
+        knownHeightCm: profile.height,
+        knownWeightKg: profile.weight,
+        front: frontFrame,
+        right: frame,
+        requirePoseDetection: true,
+      });
+
+      const nextMeasurements = measurementParts.reduce((result, part) => {
+        result[part.id] = scan.readings[part.id]?.valueCm;
+        return result;
+      }, {} as Measurements);
+
+      nextMeasurements.height = Math.round(profile.height);
+      setMeasurements(nextMeasurements);
+      setConfidence(scan.confidence);
+      setStep("results");
+    } catch (e: any) {
+      Alert.alert(
+        "Try again",
+        e.message ||
+          "We could not read the full body clearly. Step back, keep head and feet visible, and try again.",
+      );
+      setStep("camera");
+    } finally {
+      setCapturing(false);
     }
+  };
 
-    const newReadings = {
-      ...readings,
-      [currentPart.id]: currentReading,
-    };
-    setReadings(newReadings);
-    stopCapture();
-    resetCapture();
-    setIsLive(false);
-
-    const nextIndex = measurementParts.findIndex(
-      (part, index) => index > currentIndex && !newReadings[part.id],
-    );
-
-    if (nextIndex !== -1) {
-      setCurrentIndex(nextIndex);
-      return;
-    }
-
-    if (!hasSelectedClient || !user || !clientId) {
-      setShowClientModal(true);
+  const saveMeasurements = async () => {
+    if (!user || !clientId || clientId === "new") {
+      Alert.alert("Error", "Please select a client first");
       return;
     }
 
@@ -211,413 +169,483 @@ export default function TakeMeasurements() {
       setSaving(true);
 
       await addDoc(collection(db, "clients", clientId, "measurements"), {
-        ...newReadings,
-        labels: Object.fromEntries(
-          measurementParts.map((part) => [part.id, part.label]),
-        ),
-        engine: source || "calibration",
-        confidence,
+        ...measurements,
+        confidence: Math.round(confidence * 100),
         takenBy: user.uid,
         takenAt: serverTimestamp(),
+        method: "full_body_mediapipe_scan",
       });
 
       await updateDoc(doc(db, "clients", clientId), {
-        measurements: Object.keys(newReadings).length,
+        measurements: Object.keys(measurements).length,
         updatedAt: serverTimestamp(),
       });
 
-      Alert.alert("Saved", "Measurements are ready to share with a tailor.", [
+      Alert.alert("Saved!", "Measurements saved successfully.", [
         { text: "OK", onPress: () => router.back() },
       ]);
     } catch (e: any) {
-      Alert.alert(
-        "Could not save",
-        e.code
-          ? `${e.code}: ${e.message || "Check that this profile belongs to your account."}`
-          : e.message || "Check that this profile belongs to your account.",
-      );
+      Alert.alert("Error", e.message || "Could not save measurements");
     } finally {
       setSaving(false);
     }
   };
 
-  const saveLabel =
-    completedCount + 1 >= measurementParts.length
-      ? "save measurements"
-      : "save & continue";
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.iconBtn}
-            onPress={() => router.back()}
-          >
+  if (step === "instructions") {
+    return (
+      <View style={styles.instructionsContainer}>
+        <StatusBar style={theme.background === "#000" ? "light" : "dark"} />
+        <View style={styles.instructionsHeader}>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()}>
             <ChevronLeft color={theme.text} size={24} />
           </TouchableOpacity>
-          <View style={styles.headerCopy}>
-            <Text style={styles.headerTitle}>Body measurements</Text>
-            <Text style={styles.headerSubtitle}>
-              {completedCount}/{measurementParts.length} captured
+          <Text style={styles.instructionsTitle}>Before you scan</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+
+        <View style={styles.instructionCard}>
+          <Text style={styles.instructionNumber}>1</Text>
+          <View style={styles.instructionCopy}>
+            <Text style={styles.instructionTitle}>Prepare your space</Text>
+            <Text style={styles.instructionText}>
+              Use bright light, a plain background, and place the phone far enough to see your whole body.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.instructionCard}>
+          <Text style={styles.instructionNumber}>2</Text>
+          <View style={styles.instructionCopy}>
+            <Text style={styles.instructionTitle}>Stand naturally</Text>
+            <Text style={styles.instructionText}>
+              Wear fitted clothes, stand straight, and keep your arms slightly away from your body.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.instructionCard}>
+          <Text style={styles.instructionNumber}>3</Text>
+          <View style={styles.instructionCopy}>
+            <Text style={styles.instructionTitle}>Take two scans</Text>
+            <Text style={styles.instructionText}>
+              First face the camera. Then turn to your side when the app asks you.
+            </Text>
+          </View>
+        </View>
+
+        {!hasBodyInfo ? (
+          <TouchableOpacity
+            style={styles.primaryAction}
+            onPress={() => router.push("/bodyInfo")}
+          >
+            <Text style={styles.primaryActionText}>Add height and weight</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={styles.primaryAction} onPress={startGuidedScan}>
+            <Text style={styles.primaryActionText}>Open camera</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  }
+
+  if (step === "processing") {
+    return (
+      <View style={styles.processingContainer}>
+        <StatusBar style="light" />
+        <ActivityIndicator size="large" color="#fff" />
+        <Text style={styles.processingTitle}>Reading full body scan</Text>
+        <Text style={styles.processingSubtitle}>
+          Using your height and weight to calculate body parts.
+        </Text>
+      </View>
+    );
+  }
+
+  if (step === "results") {
+    return (
+      <View style={styles.resultsContainer}>
+        <StatusBar style={theme.background === "#000" ? "light" : "dark"} />
+        <View style={styles.resultsHeader}>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()}>
+            <ChevronLeft color={theme.text} size={24} />
+          </TouchableOpacity>
+          <View>
+            <Text style={styles.resultsTitle}>Body measurements</Text>
+            <Text style={styles.confidenceText}>
+              Scan confidence {Math.round(confidence * 100)}%
             </Text>
           </View>
           <TouchableOpacity
             style={styles.iconBtn}
-            onPress={() => router.push("/newClient")}
-          >
-            <Plus color={theme.text} size={20} />
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.capturePanel}>
-          <View style={styles.partHeader}>
-            <View>
-              <Text style={styles.eyebrow}>{currentPart.category}</Text>
-              <Text style={styles.partTitle}>{currentPart.label}</Text>
-            </View>
-            <View style={styles.readingPill}>
-              <Text style={styles.readingPillValue}>
-                {currentReading || "--"} cm
-              </Text>
-            </View>
-          </View>
-          <Text style={styles.guideText}>{currentPart.guide}</Text>
-
-          <View style={styles.cameraWrapper}>
-            <CameraView ref={cameraRef} style={styles.camera} facing="back" />
-            <View style={styles.cameraOverlay}>
-              <View style={styles.frameGuide}>
-                <View style={styles.frameLineTop} />
-                <View style={styles.frameLineBottom} />
-              </View>
-              <View style={styles.cameraBadge}>
-                <Camera color={theme.primaryText} size={14} />
-                <Text style={styles.cameraBadgeText}>
-                  {isLive ? "capturing" : status}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.engineRow}>
-            <Ruler color={theme.primary} size={16} />
-            <Text style={styles.engineText}>
-              {error ||
-                (isLive
-                  ? engineLabel
-                  : "Align the body part, then start capture.")}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.actionsRow}>
-          {!isLive ? (
-            <TouchableOpacity
-              style={styles.primaryBtn}
-              onPress={beginMeasuring}
-            >
-              <Camera color={theme.primaryText} size={18} />
-              <Text style={styles.primaryBtnText}>start capture</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.primaryBtn, saving && styles.disabled]}
-              onPress={saveMeasurement}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator color={theme.primaryText} />
-              ) : (
-                <>
-                  <Check color={theme.primaryText} size={18} />
-                  <Text style={styles.primaryBtnText}>{saveLabel}</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={styles.secondaryBtn}
             onPress={() => {
-              stopCapture();
-              setIsLive(false);
+              setFrontFrame(null);
+              setScanView("front");
+              setStep("camera");
             }}
           >
-            <Text style={styles.secondaryBtnText}>pause</Text>
+            <RotateCcw color={theme.text} size={20} />
           </TouchableOpacity>
         </View>
 
-        {categories.map((category) => (
-          <View key={category} style={styles.section}>
-            <Text style={styles.sectionTitle}>{category}</Text>
-            <View style={styles.partGrid}>
-              {measurementParts
-                .map((part, index) => ({ part, index }))
-                .filter(({ part }) => part.category === category)
-                .map(({ part, index }) => {
-                  const isActive = index === currentIndex;
-                  const isDone = Boolean(readings[part.id]);
-                  return (
-                    <TouchableOpacity
-                      key={part.id}
-                      style={[
-                        styles.partChip,
-                        isActive && styles.partChipActive,
-                        isDone && styles.partChipDone,
-                      ]}
-                      onPress={() => handleSelectPart(index)}
-                    >
-                      <Text
-                        style={[
-                          styles.partChipText,
-                          isActive && styles.partChipTextActive,
-                        ]}
-                      >
-                        {part.label}
-                      </Text>
-                      {isDone && (
-                        <Text style={styles.partChipValue}>
-                          {readings[part.id]} cm
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
+        <ScrollView contentContainerStyle={styles.resultsGrid}>
+          {measurementParts.map((part) => (
+            <View key={part.id} style={styles.resultCard}>
+              <Text style={styles.resultLabel}>{part.label}</Text>
+              <Text style={styles.resultValue}>
+                {measurements[part.id] ?? "--"} cm
+              </Text>
             </View>
-          </View>
-        ))}
-      </ScrollView>
+          ))}
+        </ScrollView>
 
-      <Modal
-        visible={showClientModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowClientModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Choose a measurement profile</Text>
-            <Text style={styles.modalSubtitle}>
-              Save measurements to a client or personal profile.
-            </Text>
+        <TouchableOpacity
+          style={[styles.saveBtn, saving && styles.disabled]}
+          onPress={saveMeasurements}
+          disabled={saving}
+        >
+          {saving ? (
+            <ActivityIndicator color={theme.primaryText} />
+          ) : (
+            <>
+              <Check color={theme.primaryText} size={18} />
+              <Text style={styles.saveBtnText}>Save measurements</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
-            <TouchableOpacity
-              style={styles.modalBtn}
-              onPress={handleSelectExisting}
-            >
-              <Users color={theme.primaryText} size={18} />
-              <Text style={styles.modalBtnText}>Select existing profile</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.modalBtnOutline}
-              onPress={handleAddNew}
-            >
-              <Plus color={theme.primary} size={18} />
-              <Text style={styles.modalBtnOutlineText}>Add new profile</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.modalCancel}
-              onPress={() => setShowClientModal(false)}
-            >
-              <Text style={styles.modalCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
+  return (
+    <View style={styles.cameraScreen}>
+      <StatusBar style="light" />
+      <CameraView ref={cameraRef} style={styles.camera} facing={cameraFacing}>
+        <View style={styles.topBar}>
+          <TouchableOpacity
+            style={styles.cameraIconBtn}
+            onPress={() => setStep("instructions")}
+          >
+            <ChevronLeft color="#fff" size={24} />
+          </TouchableOpacity>
+          <Text style={styles.cameraTitle}>
+            {scanView === "front" ? "Front scan" : "Side scan"}
+          </Text>
+          <TouchableOpacity
+            style={styles.cameraIconBtn}
+            onPress={() =>
+              setCameraFacing((current) =>
+                current === "front" ? "back" : "front",
+              )
+            }
+          >
+            <SwitchCamera color="#fff" size={22} />
+          </TouchableOpacity>
         </View>
-      </Modal>
-    </SafeAreaView>
+
+        <View pointerEvents="none" style={styles.scanGuide}>
+          <View style={styles.guideFrame} />
+          <Text style={styles.guideText}>
+            {scanView === "front"
+              ? "Face the camera, head and feet inside"
+              : "Turn to your side, head and feet inside"}
+          </Text>
+          <Text style={styles.guideSubText}>
+            {scanView === "front"
+              ? "Stand straight, arms slightly away from your body"
+              : "Keep your posture straight and stay still"}
+          </Text>
+        </View>
+
+        <View style={styles.bottomPanel}>
+          {!hasBodyInfo ? (
+            <TouchableOpacity
+              style={styles.bodyInfoBtn}
+              onPress={() => router.push("/bodyInfo")}
+            >
+              <Text style={styles.bodyInfoText}>Add height and weight first</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles.profileText}>
+              Height {profile?.height} cm  Weight {profile?.weight} kg
+            </Text>
+          )}
+
+          <TouchableOpacity
+            style={[styles.captureBtn, capturing && styles.disabled]}
+            onPress={captureFullBodyScan}
+            disabled={capturing}
+          >
+            <View style={styles.captureBtnInner}>
+              {capturing ? <ActivityIndicator color="#111" /> : null}
+            </View>
+          </TouchableOpacity>
+
+          <Text style={styles.captureHint}>
+            {capturing
+              ? "Scanning..."
+              : scanView === "front"
+                ? "Tap when your front view is clear"
+                : "Turn sideways, then tap to finish"}
+          </Text>
+        </View>
+      </CameraView>
+    </View>
   );
 }
 
 const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
   StyleSheet.create({
-    container: { flex: 1, backgroundColor: theme.background },
-    scroll: { padding: 18, paddingBottom: 36 },
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: 16,
-    },
-    iconBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      backgroundColor: theme.surface,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    headerCopy: { alignItems: "center" },
-    headerTitle: { color: theme.text, fontSize: 18, fontWeight: "700" },
-    headerSubtitle: { color: theme.muted, fontSize: 12, marginTop: 2 },
-    capturePanel: {
-      backgroundColor: theme.surface,
-      borderRadius: 14,
-      padding: 14,
-      marginBottom: 14,
-    },
-    partHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 8,
-    },
-    eyebrow: {
-      color: theme.primary,
-      fontSize: 12,
-      fontWeight: "700",
-      textTransform: "uppercase",
-    },
-    partTitle: { color: theme.text, fontSize: 28, fontWeight: "700" },
-    readingPill: {
-      minWidth: 92,
-      borderRadius: 14,
-      backgroundColor: theme.background,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      alignItems: "center",
-    },
-    readingPillValue: {
-      color: theme.primary,
-      fontSize: 20,
-      fontWeight: "700",
-    },
-    guideText: {
-      color: theme.muted,
-      fontSize: 13,
-      lineHeight: 18,
-      marginBottom: 12,
-    },
-    cameraWrapper: {
-      width: "100%",
-      aspectRatio: 3 / 4,
-      borderRadius: 12,
-      overflow: "hidden",
-      backgroundColor: theme.background,
-    },
-    camera: { ...StyleSheet.absoluteFillObject },
-    cameraOverlay: {
-      ...StyleSheet.absoluteFillObject,
-      justifyContent: "center",
-      alignItems: "center",
-      padding: 18,
-    },
-    frameGuide: {
-      width: "68%",
-      height: "72%",
-      borderLeftWidth: 2,
-      borderRightWidth: 2,
-      borderColor: theme.primary,
-      justifyContent: "space-between",
-      opacity: 0.9,
-    },
-    frameLineTop: {
-      height: 2,
-      backgroundColor: theme.primary,
-      width: "100%",
-    },
-    frameLineBottom: {
-      height: 2,
-      backgroundColor: theme.primary,
-      width: "100%",
-    },
-    cameraBadge: {
-      position: "absolute",
-      top: 14,
-      left: 14,
-      backgroundColor: theme.primary,
-      borderRadius: 20,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-    },
-    cameraBadgeText: {
-      color: theme.primaryText,
-      fontSize: 12,
-      fontWeight: "700",
-    },
-    engineRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      marginTop: 12,
-    },
-    engineText: { color: theme.muted, fontSize: 12, flex: 1, lineHeight: 17 },
-    actionsRow: { flexDirection: "row", gap: 10, marginBottom: 20 },
-    primaryBtn: {
+    instructionsContainer: {
       flex: 1,
-      backgroundColor: theme.primary,
-      borderRadius: 30,
-      paddingVertical: 15,
-      alignItems: "center",
-      justifyContent: "center",
+      backgroundColor: theme.background,
+      paddingTop: 54,
+      paddingHorizontal: 18,
+    },
+    instructionsHeader: {
       flexDirection: "row",
-      gap: 8,
-    },
-    primaryBtnText: {
-      color: theme.primaryText,
-      fontSize: 15,
-      fontWeight: "700",
-    },
-    secondaryBtn: {
-      width: 92,
-      borderRadius: 30,
-      borderWidth: 1,
-      borderColor: theme.border,
       alignItems: "center",
-      justifyContent: "center",
+      justifyContent: "space-between",
+      marginBottom: 22,
     },
-    secondaryBtnText: { color: theme.text, fontSize: 14, fontWeight: "600" },
-    disabled: { opacity: 0.55 },
-    section: { marginBottom: 16 },
-    sectionTitle: {
-      color: theme.subtle,
-      fontSize: 13,
-      fontWeight: "700",
-      marginBottom: 8,
-    },
-    partGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-    partChip: {
-      width: "31.5%",
-      minHeight: 58,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: theme.border,
-      backgroundColor: theme.surface,
-      padding: 10,
-      justifyContent: "center",
-    },
-    partChipActive: {
-      borderColor: theme.primary,
-      backgroundColor: theme.primary,
-    },
-    partChipDone: { borderColor: theme.primary },
-    partChipText: { color: theme.text, fontSize: 13, fontWeight: "600" },
-    partChipTextActive: { color: theme.primaryText },
-    partChipValue: { color: theme.primary, fontSize: 11, marginTop: 4 },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: theme.overlay,
-      justifyContent: "flex-end",
-    },
-    modalCard: {
-      backgroundColor: theme.surface,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      padding: 24,
-      paddingBottom: 40,
-    },
-    modalTitle: {
+    instructionsTitle: {
       color: theme.text,
       fontSize: 20,
       fontWeight: "700",
-      marginBottom: 6,
+      textAlign: "center",
     },
-    modalSubtitle: { color: theme.muted, fontSize: 14, marginBottom: 24 },
-    modalBtn: {
+    headerSpacer: { width: 42, height: 42 },
+    instructionCard: {
+      flexDirection: "row",
+      gap: 14,
+      backgroundColor: theme.surface,
+      borderRadius: 14,
+      padding: 16,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    instructionNumber: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      backgroundColor: theme.primary,
+      color: theme.primaryText,
+      textAlign: "center",
+      lineHeight: 30,
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    instructionCopy: { flex: 1 },
+    instructionTitle: {
+      color: theme.text,
+      fontSize: 15,
+      fontWeight: "700",
+      marginBottom: 5,
+    },
+    instructionText: {
+      color: theme.muted,
+      fontSize: 13,
+      lineHeight: 19,
+    },
+    primaryAction: {
+      marginTop: "auto",
+      marginBottom: 24,
+      backgroundColor: theme.primary,
+      borderRadius: 30,
+      paddingVertical: 16,
+      alignItems: "center",
+    },
+    primaryActionText: {
+      color: theme.primaryText,
+      fontSize: 15,
+      fontWeight: "700",
+    },
+    cameraScreen: { flex: 1, backgroundColor: "#000" },
+    camera: { flex: 1 },
+    topBar: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 2,
+      paddingTop: 50,
+      paddingHorizontal: 18,
+      paddingBottom: 14,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      backgroundColor: "rgba(0,0,0,0.25)",
+    },
+    cameraIconBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: "rgba(0,0,0,0.45)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    cameraTitle: { color: "#fff", fontSize: 17, fontWeight: "700" },
+    scanGuide: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 24,
+    },
+    guideFrame: {
+      width: "74%",
+      height: "68%",
+      borderWidth: 2,
+      borderColor: "rgba(255,255,255,0.85)",
+      borderRadius: 140,
+      backgroundColor: "rgba(255,255,255,0.02)",
+    },
+    guideText: {
+      marginTop: 18,
+      color: "#fff",
+      fontSize: 15,
+      fontWeight: "700",
+      textAlign: "center",
+      textShadowColor: "rgba(0,0,0,0.55)",
+      textShadowRadius: 6,
+    },
+    guideSubText: {
+      marginTop: 6,
+      color: "rgba(255,255,255,0.82)",
+      fontSize: 12,
+      textAlign: "center",
+      textShadowColor: "rgba(0,0,0,0.55)",
+      textShadowRadius: 6,
+    },
+    bottomPanel: {
+      position: "absolute",
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 2,
+      paddingHorizontal: 24,
+      paddingTop: 18,
+      paddingBottom: 34,
+      alignItems: "center",
+      backgroundColor: "rgba(0,0,0,0.42)",
+    },
+    profileText: { color: "#fff", fontSize: 13, marginBottom: 14 },
+    bodyInfoBtn: {
+      backgroundColor: "#fff",
+      borderRadius: 22,
+      paddingHorizontal: 18,
+      paddingVertical: 10,
+      marginBottom: 14,
+    },
+    bodyInfoText: { color: "#111", fontSize: 13, fontWeight: "700" },
+    captureBtn: {
+      width: 78,
+      height: 78,
+      borderRadius: 39,
+      backgroundColor: "rgba(255,255,255,0.28)",
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 3,
+      borderColor: "#fff",
+    },
+    captureBtnInner: {
+      width: 58,
+      height: 58,
+      borderRadius: 29,
+      backgroundColor: "#fff",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    captureHint: {
+      marginTop: 12,
+      color: "rgba(255,255,255,0.82)",
+      fontSize: 12,
+      textAlign: "center",
+    },
+    disabled: { opacity: 0.6 },
+    processingContainer: {
+      flex: 1,
+      backgroundColor: "#050505",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 24,
+    },
+    processingTitle: {
+      color: "#fff",
+      fontSize: 20,
+      fontWeight: "700",
+      marginTop: 18,
+      textAlign: "center",
+    },
+    processingSubtitle: {
+      color: "rgba(255,255,255,0.72)",
+      fontSize: 13,
+      marginTop: 8,
+      textAlign: "center",
+      lineHeight: 19,
+    },
+    resultsContainer: { flex: 1, backgroundColor: theme.background },
+    resultsHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingTop: 54,
+      paddingHorizontal: 18,
+      paddingBottom: 14,
+    },
+    iconBtn: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      backgroundColor: theme.surface,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    resultsTitle: {
+      color: theme.text,
+      fontSize: 20,
+      fontWeight: "700",
+      textAlign: "center",
+    },
+    confidenceText: {
+      color: theme.muted,
+      fontSize: 12,
+      marginTop: 4,
+      textAlign: "center",
+    },
+    resultsGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 10,
+      paddingHorizontal: 16,
+      paddingBottom: 110,
+    },
+    resultCard: {
+      width: "31%",
+      minHeight: 86,
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      padding: 12,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    resultLabel: {
+      color: theme.muted,
+      fontSize: 11,
+      textAlign: "center",
+    },
+    resultValue: {
+      color: theme.primary,
+      fontSize: 17,
+      fontWeight: "700",
+      marginTop: 6,
+      textAlign: "center",
+    },
+    saveBtn: {
+      position: "absolute",
+      left: 16,
+      right: 16,
+      bottom: 18,
       backgroundColor: theme.primary,
       borderRadius: 30,
       paddingVertical: 16,
@@ -625,25 +653,6 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
       alignItems: "center",
       justifyContent: "center",
       gap: 8,
-      marginBottom: 12,
     },
-    modalBtnText: { color: theme.primaryText, fontSize: 15, fontWeight: "700" },
-    modalBtnOutline: {
-      borderWidth: 1,
-      borderColor: theme.primary,
-      borderRadius: 30,
-      paddingVertical: 16,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 8,
-      marginBottom: 12,
-    },
-    modalBtnOutlineText: {
-      color: theme.primary,
-      fontSize: 15,
-      fontWeight: "600",
-    },
-    modalCancel: { alignItems: "center", paddingVertical: 12 },
-    modalCancelText: { color: theme.muted, fontSize: 14 },
+    saveBtnText: { color: theme.primaryText, fontSize: 15, fontWeight: "700" },
   });
