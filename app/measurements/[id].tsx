@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,16 +6,14 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-  Dimensions,
-  Animated,
+  ScrollView,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { ChevronLeft, Check, RotateCcw, SwitchCamera } from "lucide-react-native";
+import { Check, ChevronLeft, RotateCcw, SwitchCamera } from "lucide-react-native";
 import {
   doc,
-  getDoc,
   addDoc,
   updateDoc,
   collection,
@@ -26,29 +24,17 @@ import { useAuth } from "../context/AuthContext";
 import { useAppTheme } from "../context/ThemeContext";
 import { useUserProfile } from "../../hooks/useUserProfile";
 import {
-  analyzeMeasurementFrame,
-  registerMediaPipePoseAdapter,
+  analyzeBodyScanSession,
+  CameraFacing,
+  CameraFrame,
+  measurementParts,
+  MeasurementType,
 } from "../../services/measurementEngine";
-import BodySilhouette, { BodyGender } from "../../components/BodySilhoutte";
-import { fetchBodyMeasurements } from "../../services/measurmentCaptureApi";
-import { validateMeasurement, ValidationResult } from "../../services/measurementAPI";
 
-const { width, height } = Dimensions.get("window");
+type Step = "instructions" | "camera" | "processing" | "results";
+type ScanView = "front" | "side";
 
-type Step = "intro" | "front" | "side" | "processing" | "results";
-
-type Measurements = {
-  neck?: number;
-  shoulder?: number;
-  chest?: number;
-  waist?: number;
-  hip?: number;
-  sleeve?: number;
-  bicep?: number;
-  wrist?: number;
-  inseam?: number;
-  thigh?: number;
-  calf?: number;
+type Measurements = Partial<Record<MeasurementType, number>> & {
   height?: number;
 };
 
@@ -59,199 +45,117 @@ export default function TakeMeasurements() {
   const { id } = useLocalSearchParams();
   const clientId = Array.isArray(id) ? id[0] : id;
   const { user } = useAuth();
-  const { profile } = useUserProfile();
+  const { profile, loading: profileLoading } = useUserProfile();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
-  const [step, setStep] = useState<Step>("intro");
-  const [countdown, setCountdown] = useState(3);
-  const [counting, setCounting] = useState(false);
-  const [frontPhoto, setFrontPhoto] = useState<string | null>(null);
-  const [sidePhoto, setSidePhoto] = useState<string | null>(null);
+  const [step, setStep] = useState<Step>("instructions");
+  const [scanView, setScanView] = useState<ScanView>("front");
+  const [frontFrame, setFrontFrame] = useState<CameraFrame | null>(null);
+  const [cameraFacing, setCameraFacing] = useState<CameraFacing>("front");
   const [measurements, setMeasurements] = useState<Measurements>({});
+  const [confidence, setConfidence] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [facing, setFacing] = useState<"front" | "back">("back");
-  const [clientGender, setClientGender] = useState<BodyGender>("male");
-  const [clientAge, setClientAge] = useState<number | null>(null);
-  const [clientWeight, setClientWeight] = useState<number | null>(null);
-  const [validations, setValidations] = useState<Record<string, ValidationResult>>({});
-  const countdownAnim = useRef(new Animated.Value(1)).current;
+  const [capturing, setCapturing] = useState(false);
 
-  React.useEffect(() => {
-    if (!clientId || clientId === "new") return;
+  const hasBodyInfo =
+    Boolean(profile?.height && profile.height >= 80 && profile.height <= 260) &&
+    Boolean(profile?.weight && profile.weight >= 25 && profile.weight <= 260);
 
-    const fetchClientInfo = async () => {
-      try {
-        const clientDoc = await getDoc(doc(db, "clients", clientId));
-        if (clientDoc.exists()) {
-          const data = clientDoc.data();
-          setClientGender(data.gender === 2 ? "female" : "male");
-          setClientAge(typeof data.age === "number" ? data.age : null);
-          setClientWeight(typeof data.weight === "number" ? data.weight : null);
-        }
-      } catch (e) {
-        // keep defaults if this fails
-      }
-    };
-
-    fetchClientInfo();
-  }, [clientId]);
-
-  const startCountdown = () => {
-    setCounting(true);
-    setCountdown(3);
-    let count = 3;
-
-    const interval = setInterval(() => {
-      count--;
-      setCountdown(count);
-
-      Animated.sequence([
-        Animated.timing(countdownAnim, {
-          toValue: 1.5,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(countdownAnim, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
-
-      if (count === 0) {
-        clearInterval(interval);
-        setCounting(false);
-        takePhoto();
-      }
-    }, 1000);
+  const ensurePermission = async () => {
+    if (permission?.granted) return true;
+    const response = await requestPermission();
+    return Boolean(response.granted);
   };
 
-  const takePhoto = async () => {
+  const startGuidedScan = async () => {
+    if (capturing || profileLoading) return;
+
+    if (!hasBodyInfo || !profile?.height || !profile?.weight) {
+      Alert.alert(
+        "Body info needed",
+        "Please add your height and weight first. This helps calibrate the scan.",
+        [{ text: "OK", onPress: () => router.push("/bodyInfo") }],
+      );
+      return;
+    }
+
+    setFrontFrame(null);
+    setScanView("front");
+    setStep("camera");
+  };
+
+  const captureFullBodyScan = async () => {
+    if (capturing || profileLoading || !profile?.height || !profile?.weight) {
+      return;
+    }
+
+    const canUseCamera = await ensurePermission();
+    if (!canUseCamera) {
+      Alert.alert(
+        "Camera permission needed",
+        "Please allow camera access so Measure AI can scan your full body.",
+      );
+      return;
+    }
+
     if (!cameraRef.current) return;
 
     try {
+      setCapturing(true);
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.8,
+        quality: 0.75,
         skipProcessing: false,
+        shutterSound: false,
       });
 
-      if (step === "front") {
-        setFrontPhoto(photo.uri);
-        setStep("side");
-      } else if (step === "side") {
-        setSidePhoto(photo.uri);
-        setStep("processing");
-        await processPhotos(frontPhoto!, photo.uri);
+      const frame: CameraFrame = {
+        uri: photo.uri,
+        width: photo.width,
+        height: photo.height,
+        cameraFacing,
+        captureView: scanView === "front" ? "front" : "right",
+        capturedAt: Date.now(),
+      };
+
+      if (scanView === "front") {
+        setFrontFrame(frame);
+        setScanView("side");
+        return;
       }
-    } catch (e) {
-      Alert.alert("Error", "Could not take photo. Please try again.");
-    }
-  };
 
-  // Cross-checks the directly-captured values (chest, waist) against your
-  // trained model at measure-ai-api.onrender.com. The rest of the fields
-  // (bicep, wrist, calf, etc.) are ratio-derived estimates, not raw AR
-  // readings, so there's nothing meaningful to validate them against.
-  const runValidation = async (m: Measurements) => {
-    const genderCode = clientGender === "female" ? 2 : 1;
-    const heightCm = profile?.height || m.height || 170;
-    const weightKg = clientWeight || profile?.weight || 70;
-    const heightM = heightCm / 100;
-    const bmi = Math.round((weightKg / (heightM * heightM)) * 10) / 10;
+      if (!frontFrame) {
+        setScanView("front");
+        Alert.alert("Front scan needed", "Please capture the front view first.");
+        return;
+      }
 
-    const bodyParts: { key: keyof Measurements; body_part: string }[] = [
-      { key: "chest", body_part: "chest" },
-      { key: "waist", body_part: "waist" },
-    ];
-
-    const results: Record<string, ValidationResult> = {};
-
-    await Promise.all(
-      bodyParts.map(async ({ key, body_part }) => {
-        const value = m[key];
-        if (typeof value !== "number") return;
-
-        try {
-          const result = await validateMeasurement({
-            height: heightCm,
-            gender: genderCode,
-            age: clientAge || profile?.age || 30,
-            weight: weightKg,
-            bmi,
-            ar_measurement: value,
-            body_part,
-            unit: "cm",
-          });
-          results[key] = result;
-        } catch (e) {
-          // Validation is a secondary check — if the model's unreachable,
-          // just skip it rather than blocking the measurement flow.
-        }
-      }),
-    );
-
-    setValidations(results);
-  };
-
-  const processPhotos = async (frontUri: string, sideUri: string) => {
-    const estimatedHeightFallback = profile?.height || 170;
-
-    try {
-      // Real measurements from the Live-Measurements-Api Flask server —
-      // see services/measurementAPI.ts for what it needs to be running.
-      const apiMeasurements = await fetchBodyMeasurements({
-        frontUri,
-        sideUri,
-        heightCm: estimatedHeightFallback,
+      setStep("processing");
+      const scan = await analyzeBodyScanSession({
+        knownHeightCm: profile.height,
+        knownWeightKg: profile.weight,
+        front: frontFrame,
+        right: frame,
+        requirePoseDetection: true,
       });
 
-      setMeasurements(apiMeasurements);
+      const nextMeasurements = measurementParts.reduce((result, part) => {
+        result[part.id] = scan.readings[part.id]?.valueCm;
+        return result;
+      }, {} as Measurements);
+
+      nextMeasurements.height = Math.round(profile.height);
+      setMeasurements(nextMeasurements);
+      setConfidence(scan.confidence);
       setStep("results");
-      runValidation(apiMeasurements);
-    } catch (apiError: any) {
-      // Server not running / unreachable — fall back to the rough
-      // on-device heuristic so the flow still completes during dev.
-      try {
-        const frontResult = await analyzeMeasurementFrame({
-          uri: frontUri,
-          measurementType: "chest",
-          capturedAt: Date.now(),
-        });
-
-        const sideResult = await analyzeMeasurementFrame({
-          uri: sideUri,
-          measurementType: "waist",
-          capturedAt: Date.now(),
-        });
-
-        const estimatedHeight = profile?.height || frontResult.valueCm * 7.5;
-
-        const fallbackMeasurements: Measurements = {
-          height: Math.round(estimatedHeight),
-          chest: frontResult.valueCm,
-          waist: sideResult.valueCm,
-          hip: Math.round(frontResult.valueCm * 1.05),
-          shoulder: Math.round(frontResult.valueCm * 0.47),
-          neck: Math.round(frontResult.valueCm * 0.41),
-          sleeve: Math.round(estimatedHeight * 0.36),
-          bicep: Math.round(frontResult.valueCm * 0.35),
-          wrist: Math.round(frontResult.valueCm * 0.18),
-          inseam: Math.round(estimatedHeight * 0.46),
-          thigh: Math.round(frontResult.valueCm * 0.61),
-          calf: Math.round(frontResult.valueCm * 0.4),
-        };
-
-        setMeasurements(fallbackMeasurements);
-        setStep("results");
-        runValidation(fallbackMeasurements);
-        Alert.alert(
-          "Using rough estimate",
-          `Couldn't reach the measurement server (${apiError.message || "no connection"}), so these numbers are a rough on-device guess, not real AI measurements.`,
-        );
-      } catch (e) {
-        Alert.alert("Error", "Could not process photos. Please try again.");
-        setStep("intro");
-      }
+    } catch (e: any) {
+      Alert.alert(
+        "Try again",
+        e.message ||
+          "We could not read the full body clearly. Step back, keep head and feet visible, and try again.",
+      );
+      setStep("camera");
+    } finally {
+      setCapturing(false);
     }
   };
 
@@ -266,9 +170,10 @@ export default function TakeMeasurements() {
 
       await addDoc(collection(db, "clients", clientId, "measurements"), {
         ...measurements,
+        confidence: Math.round(confidence * 100),
         takenBy: user.uid,
         takenAt: serverTimestamp(),
-        method: "photo",
+        method: "full_body_mediapipe_scan",
       });
 
       await updateDoc(doc(db, "clients", clientId), {
@@ -276,7 +181,7 @@ export default function TakeMeasurements() {
         updatedAt: serverTimestamp(),
       });
 
-      Alert.alert("Saved! ✅", "Measurements saved successfully!", [
+      Alert.alert("Saved!", "Measurements saved successfully.", [
         { text: "OK", onPress: () => router.back() },
       ]);
     } catch (e: any) {
@@ -286,127 +191,116 @@ export default function TakeMeasurements() {
     }
   };
 
-  // INTRO SCREEN
-  if (step === "intro") {
+  if (step === "instructions") {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.introContainer}>
-          <TouchableOpacity
-            style={styles.backBtn}
-            onPress={() => router.back()}
-          >
+      <View style={styles.instructionsContainer}>
+        <StatusBar style={theme.background === "#000" ? "light" : "dark"} />
+        <View style={styles.instructionsHeader}>
+          <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()}>
             <ChevronLeft color={theme.text} size={24} />
           </TouchableOpacity>
-
-          <Text style={styles.introTitle}>Body Scan</Text>
-          <Text style={styles.introSubtitle}>
-            We'll take 2 photos to calculate your measurements accurately
-          </Text>
-
-          {/* Silhouette */}
-          <View style={styles.silhouetteContainer}>
-            <View style={styles.silhouetteFront}>
-              <BodySilhouette
-                view="front"
-                gender={clientGender}
-                color={theme.text}
-                opacity={0.85}
-                size="small"
-              />
-              <Text style={styles.silhouetteLabel}>Front</Text>
-            </View>
-            <View style={styles.silhouetteSide}>
-              <BodySilhouette
-                view="side"
-                gender={clientGender}
-                color={theme.text}
-                opacity={0.85}
-                size="small"
-              />
-              <Text style={styles.silhouetteLabel}>Side</Text>
-            </View>
-          </View>
-
-          <View style={styles.tips}>
-            <Text style={styles.tipsTitle}>For best results:</Text>
-            <Text style={styles.tip}>• Wear fitted clothing</Text>
-            <Text style={styles.tip}>
-              • Stand straight with arms slightly out
-            </Text>
-            <Text style={styles.tip}>• Good lighting, plain background</Text>
-            <Text style={styles.tip}>• Place phone 2-3 meters away</Text>
-          </View>
-
-          <TouchableOpacity
-            style={styles.startBtn}
-            onPress={async () => {
-              if (!permission?.granted) {
-                await requestPermission();
-              }
-              setStep("front");
-            }}
-          >
-            <Text style={styles.startBtnText}>Start body scan</Text>
-          </TouchableOpacity>
+          <Text style={styles.instructionsTitle}>Before you scan</Text>
+          <View style={styles.headerSpacer} />
         </View>
-      </SafeAreaView>
+
+        <View style={styles.instructionCard}>
+          <Text style={styles.instructionNumber}>1</Text>
+          <View style={styles.instructionCopy}>
+            <Text style={styles.instructionTitle}>Prepare your space</Text>
+            <Text style={styles.instructionText}>
+              Use bright light, a plain background, and place the phone far enough to see your whole body.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.instructionCard}>
+          <Text style={styles.instructionNumber}>2</Text>
+          <View style={styles.instructionCopy}>
+            <Text style={styles.instructionTitle}>Stand naturally</Text>
+            <Text style={styles.instructionText}>
+              Wear fitted clothes, stand straight, and keep your arms slightly away from your body.
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.instructionCard}>
+          <Text style={styles.instructionNumber}>3</Text>
+          <View style={styles.instructionCopy}>
+            <Text style={styles.instructionTitle}>Take two scans</Text>
+            <Text style={styles.instructionText}>
+              First face the camera. Then turn to your side when the app asks you.
+            </Text>
+          </View>
+        </View>
+
+        {!hasBodyInfo ? (
+          <TouchableOpacity
+            style={styles.primaryAction}
+            onPress={() => router.push("/bodyInfo")}
+          >
+            <Text style={styles.primaryActionText}>Add height and weight</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={styles.primaryAction} onPress={startGuidedScan}>
+            <Text style={styles.primaryActionText}>Open camera</Text>
+          </TouchableOpacity>
+        )}
+      </View>
     );
   }
 
-  // PROCESSING SCREEN
   if (step === "processing") {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.processingContainer}>
-          <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={styles.processingTitle}>Analyzing photos...</Text>
-          <Text style={styles.processingSubtitle}>
-            Calculating your body measurements
-          </Text>
-        </View>
-      </SafeAreaView>
+      <View style={styles.processingContainer}>
+        <StatusBar style="light" />
+        <ActivityIndicator size="large" color="#fff" />
+        <Text style={styles.processingTitle}>Reading full body scan</Text>
+        <Text style={styles.processingSubtitle}>
+          Using your height and weight to calculate body parts.
+        </Text>
+      </View>
     );
   }
 
-  // RESULTS SCREEN
   if (step === "results") {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.resultsContainer}>
+        <StatusBar style={theme.background === "#000" ? "light" : "dark"} />
         <View style={styles.resultsHeader}>
-          <Text style={styles.resultsTitle}>Your measurements</Text>
-          <TouchableOpacity onPress={() => setStep("intro")}>
-            <RotateCcw color={theme.muted} size={20} />
+          <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()}>
+            <ChevronLeft color={theme.text} size={24} />
+          </TouchableOpacity>
+          <View>
+            <Text style={styles.resultsTitle}>Body measurements</Text>
+            <Text style={styles.confidenceText}>
+              Scan confidence {Math.round(confidence * 100)}%
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => {
+              setFrontFrame(null);
+              setScanView("front");
+              setStep("camera");
+            }}
+          >
+            <RotateCcw color={theme.text} size={20} />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.resultsGrid}>
-          {Object.entries(measurements).map(([key, value]) => {
-            const validation = validations[key];
-            return (
-              <View key={key} style={styles.resultCard}>
-                <Text style={styles.resultLabel}>{key}</Text>
-                <Text style={styles.resultValue}>{value} cm</Text>
-                {validation && (
-                  <Text
-                    style={[
-                      styles.validationText,
-                      validation.is_valid
-                        ? styles.validationOk
-                        : styles.validationWarn,
-                    ]}
-                  >
-                    {validation.is_valid
-                      ? `✓ Verified (${validation.confidence})`
-                      : `⚠ Model suggests ${validation.suggested_value}cm`}
-                  </Text>
-                )}
-              </View>
-            );
-          })}
-        </View>
+        <ScrollView contentContainerStyle={styles.resultsGrid}>
+          {measurementParts.map((part) => (
+            <View key={part.id} style={styles.resultCard}>
+              <Text style={styles.resultLabel}>{part.label}</Text>
+              <Text style={styles.resultValue}>
+                {measurements[part.id] ?? "--"} cm
+              </Text>
+            </View>
+          ))}
+        </ScrollView>
 
         <TouchableOpacity
-          style={[styles.saveBtn, saving && { opacity: 0.6 }]}
+          style={[styles.saveBtn, saving && styles.disabled]}
           onPress={saveMeasurements}
           disabled={saving}
         >
@@ -419,243 +313,339 @@ export default function TakeMeasurements() {
             </>
           )}
         </TouchableOpacity>
-      </SafeAreaView>
+      </View>
     );
   }
 
-  // CAMERA SCREEN (front or side)
   return (
-    <SafeAreaView style={styles.container}>
-      <CameraView ref={cameraRef} style={styles.camera} facing={facing}>
-        {/* Header */}
-        <View style={styles.cameraHeader}>
+    <View style={styles.cameraScreen}>
+      <StatusBar style="light" />
+      <CameraView ref={cameraRef} style={styles.camera} facing={cameraFacing}>
+        <View style={styles.topBar}>
           <TouchableOpacity
-            style={styles.backBtn}
-            onPress={() =>
-              step === "side" ? setStep("front") : setStep("intro")
-            }
+            style={styles.cameraIconBtn}
+            onPress={() => setStep("instructions")}
           >
             <ChevronLeft color="#fff" size={24} />
           </TouchableOpacity>
           <Text style={styles.cameraTitle}>
-            {step === "front" ? "Front view" : "Side view"}
+            {scanView === "front" ? "Front scan" : "Side scan"}
           </Text>
           <TouchableOpacity
-            style={styles.backBtn}
-            onPress={() => setFacing((current) => (current === "back" ? "front" : "back"))}
+            style={styles.cameraIconBtn}
+            onPress={() =>
+              setCameraFacing((current) =>
+                current === "front" ? "back" : "front",
+              )
+            }
           >
-            <SwitchCamera color="#fff" size={20} />
+            <SwitchCamera color="#fff" size={22} />
           </TouchableOpacity>
         </View>
 
-        {/* Silhouette guide overlay */}
-        <View style={styles.silhouetteOverlay}>
-          <BodySilhouette
-            view={step === "front" ? "front" : "side"}
-            gender={clientGender}
-            color="#ffffff"
-            opacity={0.35}
-          />
+        <View pointerEvents="none" style={styles.scanGuide}>
+          <View style={styles.guideFrame} />
+          <Text style={styles.guideText}>
+            {scanView === "front"
+              ? "Face the camera, head and feet inside"
+              : "Turn to your side, head and feet inside"}
+          </Text>
+          <Text style={styles.guideSubText}>
+            {scanView === "front"
+              ? "Stand straight, arms slightly away from your body"
+              : "Keep your posture straight and stay still"}
+          </Text>
         </View>
 
-        {/* Countdown */}
-        {counting && (
-          <Animated.View
-            style={[
-              styles.countdownContainer,
-              { transform: [{ scale: countdownAnim }] },
-            ]}
-          >
-            <Text style={styles.countdownText}>{countdown}</Text>
-          </Animated.View>
-        )}
+        <View style={styles.bottomPanel}>
+          {!hasBodyInfo ? (
+            <TouchableOpacity
+              style={styles.bodyInfoBtn}
+              onPress={() => router.push("/bodyInfo")}
+            >
+              <Text style={styles.bodyInfoText}>Add height and weight first</Text>
+            </TouchableOpacity>
+          ) : (
+            <Text style={styles.profileText}>
+              Height {profile?.height} cm  Weight {profile?.weight} kg
+            </Text>
+          )}
 
-        {/* Bottom controls */}
-        <View style={styles.cameraControls}>
-          <Text style={styles.stepIndicator}>
-            Step {step === "front" ? "1" : "2"} of 2
-          </Text>
           <TouchableOpacity
-            style={styles.captureBtn}
-            onPress={startCountdown}
-            disabled={counting}
+            style={[styles.captureBtn, capturing && styles.disabled]}
+            onPress={captureFullBodyScan}
+            disabled={capturing}
           >
-            <View style={styles.captureBtnInner} />
+            <View style={styles.captureBtnInner}>
+              {capturing ? <ActivityIndicator color="#111" /> : null}
+            </View>
           </TouchableOpacity>
+
           <Text style={styles.captureHint}>
-            {counting ? `${countdown}...` : "Tap to start timer"}
+            {capturing
+              ? "Scanning..."
+              : scanView === "front"
+                ? "Tap when your front view is clear"
+                : "Turn sideways, then tap to finish"}
           </Text>
         </View>
       </CameraView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
   StyleSheet.create({
-    container: { flex: 1, backgroundColor: theme.background },
-    backBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      backgroundColor: theme.surface,
-      alignItems: "center",
-      justifyContent: "center",
+    instructionsContainer: {
+      flex: 1,
+      backgroundColor: theme.background,
+      paddingTop: 54,
+      paddingHorizontal: 18,
     },
-
-    // Intro
-    introContainer: { flex: 1, padding: 20 },
-    introTitle: {
-      color: theme.text,
-      fontSize: 28,
-      fontWeight: "700",
-      marginTop: 20,
-      marginBottom: 8,
-    },
-    introSubtitle: {
-      color: theme.muted,
-      fontSize: 14,
-      marginBottom: 30,
-      lineHeight: 20,
-    },
-    silhouetteContainer: {
+    instructionsHeader: {
       flexDirection: "row",
-      justifyContent: "center",
-      gap: 40,
-      marginBottom: 30,
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 22,
     },
-    silhouetteFront: { alignItems: "center", gap: 8 },
-    silhouetteSide: { alignItems: "center", gap: 8 },
-    silhouetteLabel: { color: theme.muted, fontSize: 13, fontWeight: "600" },
-    tips: {
-      backgroundColor: theme.surface,
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 30,
-      gap: 8,
-    },
-    tipsTitle: {
+    instructionsTitle: {
       color: theme.text,
-      fontSize: 14,
-      fontWeight: "600",
-      marginBottom: 4,
+      fontSize: 20,
+      fontWeight: "700",
+      textAlign: "center",
     },
-    tip: { color: theme.muted, fontSize: 13, lineHeight: 20 },
-    startBtn: {
+    headerSpacer: { width: 42, height: 42 },
+    instructionCard: {
+      flexDirection: "row",
+      gap: 14,
+      backgroundColor: theme.surface,
+      borderRadius: 14,
+      padding: 16,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    instructionNumber: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      backgroundColor: theme.primary,
+      color: theme.primaryText,
+      textAlign: "center",
+      lineHeight: 30,
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    instructionCopy: { flex: 1 },
+    instructionTitle: {
+      color: theme.text,
+      fontSize: 15,
+      fontWeight: "700",
+      marginBottom: 5,
+    },
+    instructionText: {
+      color: theme.muted,
+      fontSize: 13,
+      lineHeight: 19,
+    },
+    primaryAction: {
+      marginTop: "auto",
+      marginBottom: 24,
       backgroundColor: theme.primary,
       borderRadius: 30,
       paddingVertical: 16,
       alignItems: "center",
     },
-    startBtnText: { color: theme.primaryText, fontSize: 16, fontWeight: "700" },
-
-    // Camera
+    primaryActionText: {
+      color: theme.primaryText,
+      fontSize: 15,
+      fontWeight: "700",
+    },
+    cameraScreen: { flex: 1, backgroundColor: "#000" },
     camera: { flex: 1 },
-    cameraHeader: {
+    topBar: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 2,
+      paddingTop: 50,
+      paddingHorizontal: 18,
+      paddingBottom: 14,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      padding: 20,
-      paddingTop: 50,
+      backgroundColor: "rgba(0,0,0,0.25)",
     },
-    cameraTitle: { color: "#fff", fontSize: 18, fontWeight: "700" },
-    silhouetteOverlay: {
+    cameraIconBtn: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: "rgba(0,0,0,0.45)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    cameraTitle: { color: "#fff", fontSize: 17, fontWeight: "700" },
+    scanGuide: {
       flex: 1,
       alignItems: "center",
       justifyContent: "center",
-      gap: 16,
+      paddingHorizontal: 24,
     },
-    silhouetteGuide: { fontSize: 120, opacity: 0.4 },
+    guideFrame: {
+      width: "74%",
+      height: "68%",
+      borderWidth: 2,
+      borderColor: "rgba(255,255,255,0.85)",
+      borderRadius: 140,
+      backgroundColor: "rgba(255,255,255,0.02)",
+    },
     guideText: {
+      marginTop: 18,
       color: "#fff",
-      fontSize: 14,
+      fontSize: 15,
+      fontWeight: "700",
       textAlign: "center",
-      backgroundColor: "rgba(0,0,0,0.5)",
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 20,
+      textShadowColor: "rgba(0,0,0,0.55)",
+      textShadowRadius: 6,
     },
-    countdownContainer: {
+    guideSubText: {
+      marginTop: 6,
+      color: "rgba(255,255,255,0.82)",
+      fontSize: 12,
+      textAlign: "center",
+      textShadowColor: "rgba(0,0,0,0.55)",
+      textShadowRadius: 6,
+    },
+    bottomPanel: {
       position: "absolute",
-      alignSelf: "center",
-      top: "40%",
-      width: 100,
-      height: 100,
-      borderRadius: 50,
-      backgroundColor: "rgba(0,0,0,0.7)",
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 2,
+      paddingHorizontal: 24,
+      paddingTop: 18,
+      paddingBottom: 34,
       alignItems: "center",
-      justifyContent: "center",
+      backgroundColor: "rgba(0,0,0,0.42)",
     },
-    countdownText: { color: "#fff", fontSize: 48, fontWeight: "700" },
-    cameraControls: {
-      padding: 30,
-      alignItems: "center",
-      gap: 12,
-      backgroundColor: "rgba(0,0,0,0.3)",
+    profileText: { color: "#fff", fontSize: 13, marginBottom: 14 },
+    bodyInfoBtn: {
+      backgroundColor: "#fff",
+      borderRadius: 22,
+      paddingHorizontal: 18,
+      paddingVertical: 10,
+      marginBottom: 14,
     },
-    stepIndicator: { color: "#fff", fontSize: 13, opacity: 0.8 },
+    bodyInfoText: { color: "#111", fontSize: 13, fontWeight: "700" },
     captureBtn: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
-      backgroundColor: "rgba(255,255,255,0.3)",
+      width: 78,
+      height: 78,
+      borderRadius: 39,
+      backgroundColor: "rgba(255,255,255,0.28)",
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 3,
       borderColor: "#fff",
     },
     captureBtnInner: {
-      width: 56,
-      height: 56,
-      borderRadius: 28,
+      width: 58,
+      height: 58,
+      borderRadius: 29,
       backgroundColor: "#fff",
-    },
-    captureHint: { color: "#fff", fontSize: 12, opacity: 0.7 },
-
-    // Processing
-    processingContainer: {
-      flex: 1,
       alignItems: "center",
       justifyContent: "center",
-      gap: 16,
     },
-    processingTitle: { color: theme.text, fontSize: 20, fontWeight: "600" },
-    processingSubtitle: { color: theme.muted, fontSize: 14 },
-
-    // Results
+    captureHint: {
+      marginTop: 12,
+      color: "rgba(255,255,255,0.82)",
+      fontSize: 12,
+      textAlign: "center",
+    },
+    disabled: { opacity: 0.6 },
+    processingContainer: {
+      flex: 1,
+      backgroundColor: "#050505",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 24,
+    },
+    processingTitle: {
+      color: "#fff",
+      fontSize: 20,
+      fontWeight: "700",
+      marginTop: 18,
+      textAlign: "center",
+    },
+    processingSubtitle: {
+      color: "rgba(255,255,255,0.72)",
+      fontSize: 13,
+      marginTop: 8,
+      textAlign: "center",
+      lineHeight: 19,
+    },
+    resultsContainer: { flex: 1, backgroundColor: theme.background },
     resultsHeader: {
       flexDirection: "row",
-      justifyContent: "space-between",
       alignItems: "center",
-      padding: 20,
+      justifyContent: "space-between",
+      paddingTop: 54,
+      paddingHorizontal: 18,
+      paddingBottom: 14,
     },
-    resultsTitle: { color: theme.text, fontSize: 24, fontWeight: "700" },
+    iconBtn: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      backgroundColor: theme.surface,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    resultsTitle: {
+      color: theme.text,
+      fontSize: 20,
+      fontWeight: "700",
+      textAlign: "center",
+    },
+    confidenceText: {
+      color: theme.muted,
+      fontSize: 12,
+      marginTop: 4,
+      textAlign: "center",
+    },
     resultsGrid: {
       flexDirection: "row",
       flexWrap: "wrap",
-      paddingHorizontal: 16,
       gap: 10,
-      flex: 1,
+      paddingHorizontal: 16,
+      paddingBottom: 110,
     },
     resultCard: {
       width: "31%",
+      minHeight: 86,
       backgroundColor: theme.surface,
       borderRadius: 12,
       padding: 12,
+      justifyContent: "center",
       alignItems: "center",
-      gap: 4,
     },
     resultLabel: {
       color: theme.muted,
       fontSize: 11,
-      textTransform: "capitalize",
+      textAlign: "center",
     },
-    resultValue: { color: theme.primary, fontSize: 18, fontWeight: "700" },
-    validationText: { fontSize: 10, marginTop: 4, fontWeight: "600" },
-    validationOk: { color: "#4caf50" },
-    validationWarn: { color: "#e0a800" },
+    resultValue: {
+      color: theme.primary,
+      fontSize: 17,
+      fontWeight: "700",
+      marginTop: 6,
+      textAlign: "center",
+    },
     saveBtn: {
-      margin: 16,
+      position: "absolute",
+      left: 16,
+      right: 16,
+      bottom: 18,
       backgroundColor: theme.primary,
       borderRadius: 30,
       paddingVertical: 16,

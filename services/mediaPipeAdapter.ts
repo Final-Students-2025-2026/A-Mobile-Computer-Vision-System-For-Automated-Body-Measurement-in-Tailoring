@@ -8,22 +8,35 @@ import {
   CameraFrame,
 } from "./measurementEngine";
 
-const MODEL_FILE = "pose_landmarker_lite.task";
+const MODEL_FILE = "pose_landmarker_full.task";
 
 async function mediaPipeAdapter(
   frame: CameraFrame,
 ): Promise<MediaPipePoseResult | null> {
-  if (!frame.uri || frame.uri === "live-camera") return null;
+  if (!frame.uri) return null;
 
   try {
     const result = await PoseDetectionOnImage(frame.uri, MODEL_FILE, {
       numPoses: 1,
-      minPoseDetectionConfidence: 0.5,
+      minPoseDetectionConfidence: 0.75,
       delegate: Delegate.GPU,
     });
 
-    const landmarks = result?.results?.[0]?.landmarks?.[0];
-    if (!landmarks?.length) return null;
+    const raw = result?.results?.[0]?.landmarks?.[0];
+
+    if (!raw?.length) return null;
+
+    const landmarks =
+      frame.cameraFacing === "front"
+        ? raw.map((p: any) => ({
+            ...p,
+            x: 1 - p.x,
+            visibility: p.visibility ?? 0,
+          }))
+        : raw.map((p: any) => ({
+            ...p,
+            visibility: p.visibility ?? 0,
+          }));
 
     return {
       landmarks,
@@ -31,7 +44,8 @@ async function mediaPipeAdapter(
       imageHeight: result.inputImageHeight,
     };
   } catch (e) {
-    console.warn("On-device MediaPipe detection failed:", e);
+    console.warn(e);
+
     return null;
   }
 }

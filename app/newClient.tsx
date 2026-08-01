@@ -30,7 +30,6 @@ export default function NewClient() {
   const [photoUri, setPhotoUri] = useState("");
   const [photoBase64, setPhotoBase64] = useState("");
   const [photoMimeType, setPhotoMimeType] = useState("image/jpeg");
-  const [gender, setGender] = useState(1);
   const [saving, setSaving] = useState(false);
 
   const pickPhoto = async () => {
@@ -66,7 +65,9 @@ export default function NewClient() {
     }
 
     if (!photoBase64) {
-      throw new Error("Could not read the selected photo. Please choose another image.");
+      throw new Error(
+        "Could not read the selected photo. Please choose another image.",
+      );
     }
 
     return `data:${photoMimeType};base64,${photoBase64}`;
@@ -80,12 +81,11 @@ export default function NewClient() {
       const photoURL = getPhotoDataUrl();
 
       await addDoc(collection(db, "clients"), {
-        userId: user.uid,           // ties client to this tailor
+        userId: user.uid, // ties client to this tailor
         name: name.trim(),
         email: email.trim(),
         phone: phone.trim(),
         photoURL,
-        gender,
         measurements: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -158,26 +158,6 @@ export default function NewClient() {
             onChangeText={setPhone}
             keyboardType="phone-pad"
           />
-
-          <Text style={styles.label}>Gender</Text>
-          <View style={styles.genderRow}>
-            <TouchableOpacity
-              style={[styles.genderBtn, gender === 1 && styles.genderBtnActive]}
-              onPress={() => setGender(1)}
-            >
-              <Text style={[styles.genderBtnText, gender === 1 && styles.genderBtnTextActive]}>
-                Male
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.genderBtn, gender === 2 && styles.genderBtnActive]}
-              onPress={() => setGender(2)}
-            >
-              <Text style={[styles.genderBtnText, gender === 2 && styles.genderBtnTextActive]}>
-                Female
-              </Text>
-            </TouchableOpacity>
-          </View>
         </View>
 
         {/* Save Button */}
@@ -199,59 +179,52 @@ export default function NewClient() {
 
 const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
   StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.background },
-  scroll: { padding: 20 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 30,
-  },
-  headerTitle: { color: theme.text, fontSize: 18, fontWeight: "500" },
-  avatarSection: { alignItems: "center", marginBottom: 30 },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: theme.surface,
-    borderWidth: 2,
-    borderColor: theme.primary,
-    borderStyle: "dashed",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
-    overflow: "hidden",
-  },
-  avatarImage: { width: "100%", height: "100%" },
-  avatarText: { color: theme.primary, fontSize: 28, fontWeight: "300" },
-  avatarHint: { color: theme.muted, fontSize: 13 },
-  form: { marginBottom: 30 },
-  label: { color: theme.subtle, fontSize: 13, marginBottom: 8, marginTop: 16 },
-  input: {
-    backgroundColor: theme.surface,
-    borderRadius: 12,
-    padding: 14,
-    color: theme.text,
-    fontSize: 14,
-  },
-  saveBtn: {
-    backgroundColor: theme.primary,
-    borderRadius: 30,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  saveBtnDisabled: { opacity: 0.4 },
-  saveBtnText: { color: theme.primaryText, fontSize: 15, fontWeight: "600" },
-  genderRow: { flexDirection: "row", gap: 10, marginTop: 8 },
-  genderBtn: {
-    flex: 1,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: theme.border,
-    padding: 14,
-    alignItems: "center",
-  },
-  genderBtnActive: { backgroundColor: theme.primary, borderColor: theme.primary },
-  genderBtnText: { color: theme.text, fontSize: 13, fontWeight: "500" },
-  genderBtnTextActive: { color: theme.primaryText },
-});
+    container: { flex: 1, backgroundColor: theme.background },
+    scroll: { padding: 20 },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginBottom: 30,
+    },
+    headerTitle: { color: theme.text, fontSize: 18, fontWeight: "500" },
+    avatarSection: { alignItems: "center", marginBottom: 30 },
+    avatar: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: theme.surface,
+      borderWidth: 2,
+      borderColor: theme.primary,
+      borderStyle: "dashed",
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 8,
+      overflow: "hidden",
+    },
+    avatarImage: { width: "100%", height: "100%" },
+    avatarText: { color: theme.primary, fontSize: 28, fontWeight: "300" },
+    avatarHint: { color: theme.muted, fontSize: 13 },
+    form: { marginBottom: 30 },
+    label: {
+      color: theme.subtle,
+      fontSize: 13,
+      marginBottom: 8,
+      marginTop: 16,
+    },
+    input: {
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      padding: 14,
+      color: theme.text,
+      fontSize: 14,
+    },
+    saveBtn: {
+      backgroundColor: theme.primary,
+      borderRadius: 30,
+      paddingVertical: 16,
+      alignItems: "center",
+    },
+    saveBtnDisabled: { opacity: 0.4 },
+    saveBtnText: { color: theme.primaryText, fontSize: 15, fontWeight: "600" },
+  });
