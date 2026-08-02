@@ -85,7 +85,7 @@ export const measurementParts = [
   },
 ] as const;
 
-//export const measurementTypes = measurementParts.map((part) => part.id);
+export const measurementTypes = measurementParts.map((part) => part.id);
 export type MeasurementType = (typeof measurementParts)[number]["id"];
 export type CameraFacing = "front" | "back";
 export type CaptureView = "front" | "left" | "right";
