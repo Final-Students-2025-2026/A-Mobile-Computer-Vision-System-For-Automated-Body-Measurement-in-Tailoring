@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,12 @@ import {
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { StatusBar } from "expo-status-bar";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { Check, ChevronLeft, RotateCcw, SwitchCamera } from "lucide-react-native";
+import {
+  Check,
+  ChevronLeft,
+  RotateCcw,
+  SwitchCamera,
+} from "lucide-react-native";
 import {
   doc,
   addDoc,
@@ -56,6 +61,8 @@ export default function TakeMeasurements() {
   const [confidence, setConfidence] = useState(0);
   const [saving, setSaving] = useState(false);
   const [capturing, setCapturing] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const hasBodyInfo =
     Boolean(profile?.height && profile.height >= 80 && profile.height <= 260) &&
@@ -82,6 +89,25 @@ export default function TakeMeasurements() {
     setFrontFrame(null);
     setScanView("front");
     setStep("camera");
+  };
+  const startTimer = () => {
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    setCountdown(5);
+    let count = 5;
+    countdownRef.current = setInterval(() => {
+      count--;
+      setCountdown(count);
+      if (count === 0) {
+        clearInterval(countdownRef.current!);
+        setCountdown(null);
+        captureFullBodyScan();
+      }
+    }, 1000);
+  };
+
+  const cancelTimer = () => {
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    setCountdown(null);
   };
 
   const captureFullBodyScan = async () => {
@@ -125,7 +151,10 @@ export default function TakeMeasurements() {
 
       if (!frontFrame) {
         setScanView("front");
-        Alert.alert("Front scan needed", "Please capture the front view first.");
+        Alert.alert(
+          "Front scan needed",
+          "Please capture the front view first.",
+        );
         return;
       }
 
@@ -189,6 +218,11 @@ export default function TakeMeasurements() {
     } finally {
       setSaving(false);
     }
+    useEffect(() => {
+      return () => {
+        if (countdownRef.current) clearInterval(countdownRef.current);
+      };
+    }, []);
   };
 
   if (step === "instructions") {
@@ -196,7 +230,10 @@ export default function TakeMeasurements() {
       <View style={styles.instructionsContainer}>
         <StatusBar style={theme.background === "#000" ? "light" : "dark"} />
         <View style={styles.instructionsHeader}>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()}>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => router.back()}
+          >
             <ChevronLeft color={theme.text} size={24} />
           </TouchableOpacity>
           <Text style={styles.instructionsTitle}>Before you scan</Text>
@@ -208,7 +245,8 @@ export default function TakeMeasurements() {
           <View style={styles.instructionCopy}>
             <Text style={styles.instructionTitle}>Prepare your space</Text>
             <Text style={styles.instructionText}>
-              Use bright light, a plain background, and place the phone far enough to see your whole body.
+              Use bright light, a plain background, and place the phone far
+              enough to see your whole body.
             </Text>
           </View>
         </View>
@@ -218,7 +256,8 @@ export default function TakeMeasurements() {
           <View style={styles.instructionCopy}>
             <Text style={styles.instructionTitle}>Stand naturally</Text>
             <Text style={styles.instructionText}>
-              Wear fitted clothes, stand straight, and keep your arms slightly away from your body.
+              Wear fitted clothes, stand straight, and keep your arms slightly
+              away from your body.
             </Text>
           </View>
         </View>
@@ -228,7 +267,8 @@ export default function TakeMeasurements() {
           <View style={styles.instructionCopy}>
             <Text style={styles.instructionTitle}>Take two scans</Text>
             <Text style={styles.instructionText}>
-              First face the camera. Then turn to your side when the app asks you.
+              First face the camera. Then turn to your side when the app asks
+              you.
             </Text>
           </View>
         </View>
@@ -241,7 +281,10 @@ export default function TakeMeasurements() {
             <Text style={styles.primaryActionText}>Add height and weight</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity style={styles.primaryAction} onPress={startGuidedScan}>
+          <TouchableOpacity
+            style={styles.primaryAction}
+            onPress={startGuidedScan}
+          >
             <Text style={styles.primaryActionText}>Open camera</Text>
           </TouchableOpacity>
         )}
@@ -267,7 +310,10 @@ export default function TakeMeasurements() {
       <View style={styles.resultsContainer}>
         <StatusBar style={theme.background === "#000" ? "light" : "dark"} />
         <View style={styles.resultsHeader}>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => router.back()}>
+          <TouchableOpacity
+            style={styles.iconBtn}
+            onPress={() => router.back()}
+          >
             <ChevronLeft color={theme.text} size={24} />
           </TouchableOpacity>
           <View>
@@ -363,18 +409,31 @@ export default function TakeMeasurements() {
               style={styles.bodyInfoBtn}
               onPress={() => router.push("/bodyInfo")}
             >
-              <Text style={styles.bodyInfoText}>Add height and weight first</Text>
+              <Text style={styles.bodyInfoText}>
+                Add height and weight first
+              </Text>
             </TouchableOpacity>
           ) : (
             <Text style={styles.profileText}>
-              Height {profile?.height} cm  Weight {profile?.weight} kg
+              Height {profile?.height} cm Weight {profile?.weight} kg
             </Text>
           )}
 
+          {/* Countdown display */}
+          {countdown !== null && (
+            <TouchableOpacity onPress={cancelTimer}>
+              <Text style={styles.countdownDisplay}>{countdown}</Text>
+              <Text style={styles.cancelHint}>Tap to cancel</Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
-            style={[styles.captureBtn, capturing && styles.disabled]}
-            onPress={captureFullBodyScan}
-            disabled={capturing}
+            style={[
+              styles.captureBtn,
+              (capturing || countdown !== null) && styles.disabled,
+            ]}
+            onPress={startTimer}
+            disabled={capturing || countdown !== null}
           >
             <View style={styles.captureBtnInner}>
               {capturing ? <ActivityIndicator color="#111" /> : null}
@@ -384,9 +443,11 @@ export default function TakeMeasurements() {
           <Text style={styles.captureHint}>
             {capturing
               ? "Scanning..."
-              : scanView === "front"
-                ? "Tap when your front view is clear"
-                : "Turn sideways, then tap to finish"}
+              : countdown !== null
+                ? "Get in position..."
+                : scanView === "front"
+                  ? "Tap for 5s timer — front view"
+                  : "Tap for 5s timer — side view"}
           </Text>
         </View>
       </CameraView>
@@ -655,4 +716,19 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
       gap: 8,
     },
     saveBtnText: { color: theme.primaryText, fontSize: 15, fontWeight: "700" },
+    countdownDisplay: {
+      color: "#fff",
+      fontSize: 72,
+      fontWeight: "700",
+      textAlign: "center",
+      textShadowColor: "rgba(0,0,0,0.8)",
+      textShadowRadius: 10,
+      marginBottom: 4,
+    },
+    cancelHint: {
+      color: "rgba(255,255,255,0.7)",
+      fontSize: 12,
+      textAlign: "center",
+      marginBottom: 16,
+    },
   });
