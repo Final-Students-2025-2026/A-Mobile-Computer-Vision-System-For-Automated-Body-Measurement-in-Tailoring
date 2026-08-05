@@ -13,7 +13,15 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { ChevronLeft, Pencil, Save, Send, Shirt, Trash2, X } from "lucide-react-native";
+import {
+  ChevronLeft,
+  Pencil,
+  Save,
+  Send,
+  Shirt,
+  Trash2,
+  X,
+} from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import {
   doc,
@@ -28,7 +36,8 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../../config/firebase";
-import { useAppTheme } from "../context/ThemeContext";
+import { useAuth } from "../../contexts/AuthContext";
+import { useAppTheme } from "../../contexts/ThemeContext";
 
 export default function ClientProfile() {
   const router = useRouter();
@@ -355,18 +364,34 @@ export default function ClientProfile() {
             <Text style={styles.label}>Gender</Text>
             <View style={styles.genderRow}>
               <TouchableOpacity
-                style={[styles.genderBtn, gender === 1 && styles.genderBtnActive]}
+                style={[
+                  styles.genderBtn,
+                  gender === 1 && styles.genderBtnActive,
+                ]}
                 onPress={() => setGender(1)}
               >
-                <Text style={[styles.genderBtnText, gender === 1 && styles.genderBtnTextActive]}>
+                <Text
+                  style={[
+                    styles.genderBtnText,
+                    gender === 1 && styles.genderBtnTextActive,
+                  ]}
+                >
                   Male
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.genderBtn, gender === 2 && styles.genderBtnActive]}
+                style={[
+                  styles.genderBtn,
+                  gender === 2 && styles.genderBtnActive,
+                ]}
                 onPress={() => setGender(2)}
               >
-                <Text style={[styles.genderBtnText, gender === 2 && styles.genderBtnTextActive]}>
+                <Text
+                  style={[
+                    styles.genderBtnText,
+                    gender === 2 && styles.genderBtnTextActive,
+                  ]}
+                >
                   Female
                 </Text>
               </TouchableOpacity>
@@ -497,7 +522,9 @@ export default function ClientProfile() {
             style={styles.newMeasurementBtn}
             onPress={() => router.push(`/measurements/${id}` as any)}
           >
-            <Text style={styles.newMeasurementText}>+ capture measurements</Text>
+            <Text style={styles.newMeasurementText}>
+              + capture measurements
+            </Text>
           </TouchableOpacity>
         ) : null}
       </ScrollView>
@@ -573,7 +600,10 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
       padding: 14,
       alignItems: "center",
     },
-    genderBtnActive: { backgroundColor: theme.primary, borderColor: theme.primary },
+    genderBtnActive: {
+      backgroundColor: theme.primary,
+      borderColor: theme.primary,
+    },
     genderBtnText: { color: theme.text, fontSize: 13, fontWeight: "500" },
     genderBtnTextActive: { color: theme.primaryText },
     rowSplit: { flexDirection: "row", gap: 12, marginTop: 8, marginBottom: 4 },

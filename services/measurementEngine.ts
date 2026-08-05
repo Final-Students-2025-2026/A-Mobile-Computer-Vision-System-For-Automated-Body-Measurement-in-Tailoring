@@ -1,3 +1,4 @@
+import { validateMeasurement } from "./measurementAPI";
 export const measurementParts = [
   {
     id: "neck",
@@ -417,7 +418,8 @@ function calibrateFromHeight(
     throw new MeasurementDetectionError(
       "Image dimensions are unavailable; the scan cannot be calibrated safely.",
     );
-  const head = pose.landmarks[0];
+  const head =
+    midpoint(pose.landmarks[2], pose.landmarks[5]) ?? pose.landmarks[0];
   const ankles = midpoint(pose.landmarks[27], pose.landmarks[28]);
   const heightPx = pixelDistance(
     head,
@@ -432,9 +434,24 @@ function calibrateFromHeight(
       pose.landmarks[28]?.visibility,
     ].filter(isNumber),
   );
-  if (heightPx < dimensions.height * 0.35 || visibility < 0.45) {
+  //console log for debuigging
+  console.log({
+    imageHeight: dimensions.height,
+    bodyHeight: heightPx,
+    ratio: heightPx / dimensions.height,
+    visibility,
+  });
+  const ratio = heightPx / dimensions.height;
+
+  if (ratio < 0.18) {
     throw new MeasurementDetectionError(
-      "Your full body must be clearly visible from head to ankles for calibration. Step back and try again.",
+      "Move farther back so your full body fits in the frame.",
+    );
+  }
+
+  if (visibility < 0.2) {
+    throw new MeasurementDetectionError(
+      "Stand in better lighting and keep your ankles visible.",
     );
   }
   return {
@@ -544,7 +561,7 @@ function estimateBodyScanFromPose(
     landmarks[27],
     landmarks[28],
   ];
-  if (required.some((p) => (p?.visibility ?? 0) < 0.6)) {
+  if (required.some((p) => (p?.visibility ?? 0) < 0.35)) {
     throw new MeasurementDetectionError("Body landmarks are not clear enough.");
   }
   const baseConfidence =
@@ -822,16 +839,27 @@ function midpoint(
 function hasUsablePose(
   pose: MediaPipePoseResult | null,
 ): pose is MediaPipePoseResult {
-  return Boolean(
-    pose?.landmarks?.length &&
-    pose.landmarks[0] &&
-    pose.landmarks[27] &&
-    pose.landmarks[28],
+  if (!pose) return false;
+
+  const head = pose.landmarks[0];
+  const leftAnkle = pose.landmarks[27];
+  const rightAnkle = pose.landmarks[28];
+
+  return (
+    head &&
+    leftAnkle &&
+    rightAnkle &&
+    (head.visibility ?? 0) > 0.4 &&
+    ((leftAnkle.visibility ?? 0) > 0.2 || (rightAnkle.visibility ?? 0) > 0.2)
   );
+}
+function isNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }
 function isPlausibleHeight(value: number) {
   return Number.isFinite(value) && value >= 80 && value <= 260;
 }
+
 function isPlausibleWeight(value: unknown): value is number {
   return (
     typeof value === "number" &&
@@ -839,9 +867,6 @@ function isPlausibleWeight(value: unknown): value is number {
     value >= 25 &&
     value <= 260
   );
-}
-function isNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
 }
 function average(values: number[]) {
   return values.length
@@ -851,7 +876,6 @@ function average(values: number[]) {
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
-import { validateMeasurement } from "./measurementAPI";
 
 async function validateBodyMeasurements(
   scan: BodyScanResult,

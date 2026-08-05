@@ -25,8 +25,8 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../../config/firebase";
-import { useAuth } from "../context/AuthContext";
-import { useAppTheme } from "../context/ThemeContext";
+import { useAuth } from "../../contexts/AuthContext";
+import { useAppTheme } from "../../contexts/ThemeContext";
 import { useUserProfile } from "../../hooks/useUserProfile";
 import {
   analyzeBodyScanSession,
@@ -218,11 +218,11 @@ export default function TakeMeasurements() {
     } finally {
       setSaving(false);
     }
-    useEffect(() => {
-      return () => {
-        if (countdownRef.current) clearInterval(countdownRef.current);
-      };
-    }, []);
+    // useEffect(() => {
+    //   return () => {
+    //     if (countdownRef.current) clearInterval(countdownRef.current);
+    //   };
+    // }, []);
   };
 
   if (step === "instructions") {

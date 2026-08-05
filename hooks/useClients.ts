@@ -7,7 +7,7 @@ import {
   orderBy,
 } from "firebase/firestore";
 import { db } from "../config/firebase";
-import { useAuth } from "../app/context/AuthContext";
+import { useAuth } from "../contexts/AuthContext";
 
 export interface Client {
   id: string;
@@ -37,7 +37,7 @@ export function useClients() {
     const q = query(
       collection(db, "clients"),
       where("userId", "==", user.uid),
-      orderBy("createdAt", "desc")
+      orderBy("createdAt", "desc"),
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -90,10 +90,7 @@ export function useClients() {
     return c.updatedAt === "today" || c.updatedAt === "yesterday";
   }).length;
 
-  const totalMeasurements = clients.reduce(
-    (sum, c) => sum + c.measurements,
-    0
-  );
+  const totalMeasurements = clients.reduce((sum, c) => sum + c.measurements, 0);
 
   return {
     clients,

@@ -8,7 +8,7 @@ import {
   CameraFrame,
 } from "./measurementEngine";
 
-const MODEL_FILE = "pose_landmarker_full.task";
+const MODEL_FILE = "pose_landmarker_lite.task";
 
 async function mediaPipeAdapter(
   frame: CameraFrame,
@@ -19,7 +19,7 @@ async function mediaPipeAdapter(
     const result = await PoseDetectionOnImage(frame.uri, MODEL_FILE, {
       numPoses: 1,
       minPoseDetectionConfidence: 0.75,
-      delegate: Delegate.GPU,
+      delegate: Delegate.CPU,
     });
 
     const raw = result?.results?.[0]?.landmarks?.[0];

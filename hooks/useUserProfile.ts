@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../config/firebase";
-import { useAuth } from "../app/context/AuthContext";
+import { useAuth } from "../contexts/AuthContext";
 
 export interface UserProfile {
   height: number;
@@ -43,7 +43,7 @@ export function useUserProfile() {
       // Auto calculate BMI
       const heightInMeters = data.height / 100;
       const bmi = parseFloat(
-        (data.weight / (heightInMeters * heightInMeters)).toFixed(1)
+        (data.weight / (heightInMeters * heightInMeters)).toFixed(1),
       );
 
       const profileData = { ...data, bmi, updatedAt: serverTimestamp() };

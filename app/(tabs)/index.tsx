@@ -13,7 +13,7 @@ import { useRouter } from "expo-router";
 import { Plus, Ruler, Send, Shirt } from "lucide-react-native";
 import { useAuth } from "../../hooks/useAuth";
 import { useClients } from "../../hooks/useClients";
-import { useAppTheme } from "../context/ThemeContext";
+import { useAppTheme } from "../../contexts/ThemeContext";
 
 function getUserName(user: ReturnType<typeof useAuth>["user"]) {
   return user?.displayName || user?.email?.split("@")[0] || "there";
@@ -304,3 +304,4 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
     },
     secondaryBtnText: { color: theme.text, fontSize: 13, fontWeight: "500" },
   });
+
