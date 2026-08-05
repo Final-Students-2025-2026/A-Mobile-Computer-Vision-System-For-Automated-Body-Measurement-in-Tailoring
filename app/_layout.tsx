@@ -5,9 +5,6 @@ import { ThemeProvider } from "./context/ThemeContext";
 import { setupMediaPipe } from "../services/mediaPipeAdapter";
 
 export default function RootLayout() {
-  useEffect(() => {
-    setupMediaPipe();
-  }, []);
 
   return (
     <ThemeProvider>
