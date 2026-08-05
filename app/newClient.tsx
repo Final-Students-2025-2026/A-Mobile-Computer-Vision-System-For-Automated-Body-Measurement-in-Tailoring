@@ -16,8 +16,8 @@ import { ChevronLeft } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../config/firebase";
-import { useAuth } from "./context/AuthContext";
-import { useAppTheme } from "./context/ThemeContext";
+import { useAuth } from "../contexts/AuthContext";
+import { useAppTheme } from "../contexts/ThemeContext";
 
 export default function NewClient() {
   const router = useRouter();

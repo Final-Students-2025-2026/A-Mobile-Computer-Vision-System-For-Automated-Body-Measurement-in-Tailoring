@@ -1,7 +1,7 @@
 import { Stack } from "expo-router";
 import React, { useEffect } from "react";
-import { AuthProvider } from "./context/AuthContext";
-import { ThemeProvider } from "./context/ThemeContext";
+import { AuthProvider } from "../contexts/AuthContext";
+import { ThemeProvider } from "../contexts/ThemeContext";
 import { setupMediaPipe } from "../services/mediaPipeAdapter";
 
 export default function RootLayout() {

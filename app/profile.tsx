@@ -17,8 +17,8 @@ import {
   Moon,
   Sun,
 } from "lucide-react-native";
-import { useAuth } from "./context/AuthContext";
-import { ThemeName, useAppTheme } from "./context/ThemeContext";
+import { useAuth } from "../contexts/AuthContext";
+import { ThemeName, useAppTheme } from "../contexts/ThemeContext";
 import { useState } from "react";
 import { TextInput, Alert } from "react-native";
 import { useUserProfile } from "../hooks/useUserProfile";
@@ -302,3 +302,4 @@ saveBtn: {
 },
 saveBtnText: { color: theme.primaryText, fontSize: 14, fontWeight: "600" },
   });
+

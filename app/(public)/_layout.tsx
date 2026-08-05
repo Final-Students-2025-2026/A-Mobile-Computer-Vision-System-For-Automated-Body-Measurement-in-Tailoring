@@ -1,5 +1,5 @@
 import { Redirect, Stack } from "expo-router";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../../contexts/AuthContext";
 
 export default function PublicLayout() {
   const { user, loading } = useAuth();
@@ -10,3 +10,4 @@ export default function PublicLayout() {
 
   return <Stack />;
 }
+

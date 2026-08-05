@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ChevronLeft, Ruler, Scale, Calendar, Users } from "lucide-react-native";
-import { useAppTheme } from "./context/ThemeContext";
+import { useAppTheme } from "../contexts/ThemeContext";
 import { useUserProfile } from "../hooks/useUserProfile";
 
 export default function BodyInfo() {

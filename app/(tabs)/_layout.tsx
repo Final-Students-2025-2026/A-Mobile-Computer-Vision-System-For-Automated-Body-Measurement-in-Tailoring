@@ -2,8 +2,8 @@ import { Redirect, Tabs } from "expo-router";
 import React from "react";
 import { ActivityIndicator, View } from "react-native";
 import { Home, Users, Send, Shirt } from "lucide-react-native";
-import { useAuth } from "../context/AuthContext";
-import { useAppTheme } from "../context/ThemeContext";
+import { useAuth } from "../../contexts/AuthContext";
+import { useAppTheme } from "../../contexts/ThemeContext";
 
 export default function TabsLayout() {
   const { user, loading } = useAuth();
@@ -71,3 +71,4 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
+

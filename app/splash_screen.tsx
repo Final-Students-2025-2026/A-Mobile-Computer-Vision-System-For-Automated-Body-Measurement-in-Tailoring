@@ -8,7 +8,7 @@ import {
   Text,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useAuth } from "./context/AuthContext";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function SplashScreen() {
   const router = useRouter();
@@ -115,3 +115,4 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
+

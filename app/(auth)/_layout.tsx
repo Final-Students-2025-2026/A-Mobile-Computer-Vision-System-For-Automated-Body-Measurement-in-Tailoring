@@ -1,7 +1,7 @@
 import { Redirect, Stack } from "expo-router";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../../contexts/AuthContext";
 import { ActivityIndicator, View } from "react-native";
-import { useAppTheme } from "../context/ThemeContext";
+import { useAppTheme } from "../../contexts/ThemeContext";
 
 export default function AuthLayout() {
   const { user, loading } = useAuth();
@@ -34,3 +34,4 @@ export default function AuthLayout() {
     </Stack>
   );
 }
+

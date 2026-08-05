@@ -13,7 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Plus, Search } from "lucide-react-native";
 import { useClients } from "../../hooks/useClients";
-import { useAppTheme } from "../context/ThemeContext";
+import { useAppTheme } from "../../contexts/ThemeContext";
 
 export default function Clients() {
   const router = useRouter();
@@ -165,3 +165,4 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
     justifyContent: "center",
   },
 });
+

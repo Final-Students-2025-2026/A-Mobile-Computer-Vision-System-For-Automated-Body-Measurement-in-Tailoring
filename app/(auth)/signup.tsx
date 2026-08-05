@@ -10,23 +10,23 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { createLoginStyles } from "./login.styles";
+import { createLoginStyles } from "../../styles/login.styles";
 import { Eye, EyeOff } from "lucide-react-native";
 import { useRouter } from "expo-router";
-import { useAuth } from "../context/AuthContext";
-import { useGoogleSignIn } from "../../hooks/useGoogleSignIn";
-import { useAppTheme } from "../context/ThemeContext";
+import { useAuth } from "../../contexts/AuthContext";
+//import { useGoogleSignIn } from "../../hooks/useGoogleSignIn";
+import { useAppTheme } from "../../contexts/ThemeContext";
 
 export default function Signup() {
   const router = useRouter();
   const { signup } = useAuth();
   const { theme } = useAppTheme();
   const styles = createLoginStyles(theme);
-  const {
-    error: googleError,
-    loading: googleLoading,
-    signInWithGoogle,
-  } = useGoogleSignIn();
+  // const {
+  //   error: googleError,
+  //   loading: googleLoading,
+  //   signInWithGoogle,
+  // } = useGoogleSignIn();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -135,7 +135,9 @@ export default function Signup() {
                   onChangeText={setPassword}
                   autoCapitalize="none"
                 />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                >
                   {showPassword ? (
                     <Eye color={theme.muted} />
                   ) : (
@@ -144,7 +146,7 @@ export default function Signup() {
                 </TouchableOpacity>
               </View>
 
-              {error || googleError ? (
+              {/* {error || googleError ? (
                 <Text style={styles.error}>{error || googleError}</Text>
               ) : null}
 
@@ -156,9 +158,9 @@ export default function Signup() {
                 <Text style={styles.buttonText}>
                   {loading ? "Creating Account..." : "Sign Up"}
                 </Text>
-              </TouchableOpacity>
+              </TouchableOpacity> */}
 
-              <TouchableOpacity
+              {/* <TouchableOpacity
                 style={styles.googleBtn}
                 onPress={signInWithGoogle}
                 disabled={googleLoading}
@@ -172,7 +174,7 @@ export default function Signup() {
                   source={require("../../assets/icons/google.png")}
                   style={styles.googleIcon}
                 />
-              </TouchableOpacity>
+              </TouchableOpacity> */}
 
               <Text style={styles.privacy}>
                 By signing up, you agree to our Terms & Privacy Policy

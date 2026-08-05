@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAppTheme } from "../context/ThemeContext";
+import { useAppTheme } from "../../contexts/ThemeContext";
 import { useClients } from "../../hooks/useClients";
 import { useRouter } from "expo-router";
 import { Shirt } from "lucide-react-native";
@@ -321,3 +321,4 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
     selectPrompt: { alignItems: "center", paddingTop: 40 },
     selectPromptText: { color: theme.muted, fontSize: 14 },
   });
+

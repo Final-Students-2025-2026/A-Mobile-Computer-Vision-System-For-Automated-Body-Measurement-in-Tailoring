@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { createLoginStyles } from "./login.styles";
+import { createLoginStyles } from "../../styles/login.styles";
 import { useRouter } from "expo-router";
-import { useAuth } from "../context/AuthContext";
-import { useAppTheme } from "../context/ThemeContext";
+import { useAuth } from "../../contexts/AuthContext";
+import { useAppTheme } from "../../contexts/ThemeContext";
 
 export default function ForgotPassword() {
   const { resetPassword } = useAuth();
@@ -98,3 +98,4 @@ export default function ForgotPassword() {
     </SafeAreaView>
   );
 }
+

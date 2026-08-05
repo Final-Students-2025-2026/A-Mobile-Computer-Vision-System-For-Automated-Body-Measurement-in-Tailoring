@@ -18,9 +18,9 @@ import {
   Mail,
   ChevronRight,
 } from "lucide-react-native";
-import { useAppTheme } from "../context/ThemeContext";
+import { useAppTheme } from "../../contexts/ThemeContext";
 import { useClients } from "../../hooks/useClients";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../../contexts/AuthContext";
 
 export default function SendToTailor() {
   const { theme } = useAppTheme();
@@ -252,3 +252,4 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
     },
     emptyBtnText: { color: theme.primaryText, fontSize: 14, fontWeight: "600" },
   });
+
