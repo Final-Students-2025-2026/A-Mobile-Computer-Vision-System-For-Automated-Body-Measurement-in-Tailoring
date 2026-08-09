@@ -19,6 +19,7 @@ export default function RootLayout() {
           <Stack.Screen name="measurements" />
           <Stack.Screen name="newClient" />
           <Stack.Screen name="bodyInfo" />
+          <Stack.Screen name="onboarding"/>
         </Stack>
       </AuthProvider>
     </ThemeProvider>
