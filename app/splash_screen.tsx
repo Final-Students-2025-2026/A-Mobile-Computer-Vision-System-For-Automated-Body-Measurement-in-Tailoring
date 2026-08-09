@@ -6,47 +6,61 @@ import {
   Image,
   TouchableOpacity,
   Text,
+  Dimensions,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../contexts/AuthContext";
 
+const { height } = Dimensions.get("window");
+
 export default function SplashScreen() {
   const router = useRouter();
   const { user, loading } = useAuth();
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
-  const taglineFade = useRef(new Animated.Value(0)).current;
-  const buttonFade = useRef(new Animated.Value(0)).current;
+  const logoScale = useRef(new Animated.Value(0.7)).current;
+  const logoOpacity = useRef(new Animated.Value(0)).current;
+  const textOpacity = useRef(new Animated.Value(0)).current;
+  const buttonOpacity = useRef(new Animated.Value(0)).current;
+  const buttonY = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
     if (loading) return;
 
+    // Logo animates in
     Animated.parallel([
-      Animated.timing(fadeAnim, {
+      Animated.timing(logoOpacity, {
         toValue: 1,
-        duration: 1000,
+        duration: 800,
         useNativeDriver: true,
       }),
-      Animated.spring(scaleAnim, {
+      Animated.spring(logoScale, {
         toValue: 1,
-        friction: 4,
+        friction: 5,
+        tension: 40,
         useNativeDriver: true,
       }),
     ]).start(() => {
-      // Tagline fades in after logo
-      Animated.timing(taglineFade, {
+      // Text fades in
+      Animated.timing(textOpacity, {
         toValue: 1,
-        duration: 600,
+        duration: 500,
         useNativeDriver: true,
       }).start(() => {
         if (user) {
-          setTimeout(() => router.replace("/(tabs)"), 2000);
+          setTimeout(() => router.replace("/(tabs)"), 1500);
         } else {
-          Animated.timing(buttonFade, {
-            toValue: 1,
-            duration: 600,
-            useNativeDriver: true,
-          }).start();
+          // Button slides up and fades in
+          Animated.parallel([
+            Animated.timing(buttonOpacity, {
+              toValue: 1,
+              duration: 500,
+              useNativeDriver: true,
+            }),
+            Animated.spring(buttonY, {
+              toValue: 0,
+              friction: 6,
+              useNativeDriver: true,
+            }),
+          ]).start();
         }
       });
     });
@@ -54,48 +68,54 @@ export default function SplashScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Background glow */}
-      <View style={styles.glow} />
+      {/* Center content */}
+      <View style={styles.centerContent}>
+        {/* Logo */}
+        <Animated.View
+          style={{
+            opacity: logoOpacity,
+            transform: [{ scale: logoScale }],
+          }}
+        >
+          <Image
+            source={require("../assets/images/measure-ai-icon.png")}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </Animated.View>
 
-      {/* Logo */}
-      <Animated.View
-        style={[
-          styles.logoWrapper,
-          {
-            opacity: fadeAnim,
-            transform: [{ scale: scaleAnim }],
-          },
-        ]}
-      >
-        <Image
-          source={require("../assets/images/measure-ai-icon.png")}
-          style={styles.logo}
-          resizeMode="contain"
-        />
-      </Animated.View>
+        {/* App name + tagline */}
+        <Animated.View style={[styles.textBlock, { opacity: textOpacity }]}>
+          <Text style={styles.appName}>Measure AI</Text>
+          <Text style={styles.tagline}>your body. your fit. your style.</Text>
+        </Animated.View>
+      </View>
 
-      {/* App name + tagline */}
-      <Animated.View style={[styles.textWrapper, { opacity: taglineFade }]}>
-        <Text style={styles.appName}>Measure AI</Text>
-        <Text style={styles.tagline}>your body. your fit. your style.</Text>
-      </Animated.View>
-
-      {/* Get Started Button */}
+      {/* Bottom buttons */}
       {!user && (
-        <Animated.View style={[styles.buttonWrapper, { opacity: buttonFade }]}>
+        <Animated.View
+          style={[
+            styles.bottomSection,
+            {
+              opacity: buttonOpacity,
+              transform: [{ translateY: buttonY }],
+            },
+          ]}
+        >
           <TouchableOpacity
-            style={styles.button}
+            style={styles.getStartedBtn}
             onPress={() => router.replace("/onboarding")}
           >
-            <Text style={styles.buttonText}>Get Started</Text>
+            <Text style={styles.getStartedText}>Get Started</Text>
           </TouchableOpacity>
+
           <TouchableOpacity
-            style={styles.signinBtn}
+            style={styles.signInBtn}
             onPress={() => router.replace("/(auth)/login")}
           >
-            <Text style={styles.signinText}>
+            <Text style={styles.signInText}>
               Already have an account?{" "}
-              <Text style={styles.signinLink}>Sign in</Text>
+              <Text style={styles.signInLink}>Sign in</Text>
             </Text>
           </TouchableOpacity>
         </Animated.View>
@@ -109,65 +129,64 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#0d0d0d",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
+    paddingBottom: 60,
   },
-  glow: {
-    position: "absolute",
-    width: 300,
-    height: 300,
-    borderRadius: 150,
-    backgroundColor: "#b8f54a",
-    opacity: 0.06,
-    top: "30%",
-    alignSelf: "center",
-  },
-  logoWrapper: {
+  centerContent: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 24,
+    gap: 24,
   },
   logo: {
-    width: 120,
-    height: 120,
-    borderRadius: 28,
+    width: 110,
+    height: 110,
+    borderRadius: 24,
   },
-  textWrapper: {
+  textBlock: {
     alignItems: "center",
     gap: 8,
-    marginBottom: 60,
   },
   appName: {
     color: "#ffffff",
-    fontSize: 32,
-    fontWeight: "700",
+    fontSize: 36,
+    fontWeight: "800",
     letterSpacing: 0.5,
   },
   tagline: {
     color: "#b8f54a",
-    fontSize: 14,
-    letterSpacing: 1,
+    fontSize: 13,
+    letterSpacing: 2,
     opacity: 0.8,
+    textTransform: "lowercase",
   },
-  buttonWrapper: {
-    position: "absolute",
-    bottom: 60,
-    width: "85%",
-    alignItems: "center",
+  bottomSection: {
+    width: "100%",
+    paddingHorizontal: 28,
     gap: 16,
+    alignItems: "center",
   },
-  button: {
+  getStartedBtn: {
+    width: "100%",
     backgroundColor: "#b8f54a",
-    borderRadius: 30,
+    borderRadius: 16,
     paddingVertical: 18,
     alignItems: "center",
-    width: "100%",
   },
-  buttonText: {
+  getStartedText: {
     color: "#0d0d0d",
     fontSize: 16,
+    fontWeight: "800",
+  },
+  signInBtn: {
+    padding: 8,
+  },
+  signInText: {
+    color: "#666",
+    fontSize: 14,
+  },
+  signInLink: {
+    color: "#b8f54a",
     fontWeight: "700",
   },
-  signinBtn: { padding: 8 },
-  signinText: { color: "#888", fontSize: 14 },
-  signinLink: { color: "#b8f54a", fontWeight: "600" },
 });
