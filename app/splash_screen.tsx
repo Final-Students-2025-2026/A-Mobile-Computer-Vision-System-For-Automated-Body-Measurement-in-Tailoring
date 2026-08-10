@@ -66,62 +66,37 @@ export default function SplashScreen() {
     });
   }, [loading, user]);
 
-  return (
-    <View style={styles.container}>
-      {/* Center content */}
-      <View style={styles.centerContent}>
-        {/* Logo */}
-        <Animated.View
-          style={{
-            opacity: logoOpacity,
-            transform: [{ scale: logoScale }],
-          }}
+    return (
+  <View style={styles.container}>
+    <Animated.View
+      style={[
+        styles.logoWrapper,
+        {
+          opacity: logoOpacity,
+          transform: [{ scale: logoScale }],
+        },
+      ]}
+    >
+      <Image
+        source={require("../assets/images/measure-ai-icon.png")}
+        style={styles.logo}
+        resizeMode="contain"
+      />
+    </Animated.View>
+
+    {!user && (
+      <Animated.View style={[styles.buttonWrapper, { opacity: buttonOpacity }]}>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={() => router.replace("/onboarding")}
         >
-          <Image
-            source={require("../assets/images/measure-ai-icon.png")}
-            style={styles.logo}
-            resizeMode="contain"
-          />
-        </Animated.View>
+          <Text style={styles.buttonText}>Get Started</Text>
+        </TouchableOpacity>
+      </Animated.View>
+    )}
+  </View>
+);
 
-        {/* App name + tagline */}
-        <Animated.View style={[styles.textBlock, { opacity: textOpacity }]}>
-          <Text style={styles.appName}>Measure AI</Text>
-          <Text style={styles.tagline}>your body. your fit. your style.</Text>
-        </Animated.View>
-      </View>
-
-      {/* Bottom buttons */}
-      {!user && (
-        <Animated.View
-          style={[
-            styles.bottomSection,
-            {
-              opacity: buttonOpacity,
-              transform: [{ translateY: buttonY }],
-            },
-          ]}
-        >
-          <TouchableOpacity
-            style={styles.getStartedBtn}
-            onPress={() => router.replace("/onboarding")}
-          >
-            <Text style={styles.getStartedText}>Get Started</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.signInBtn}
-            onPress={() => router.replace("/(auth)/login")}
-          >
-            <Text style={styles.signInText}>
-              Already have an account?{" "}
-              <Text style={styles.signInLink}>Sign in</Text>
-            </Text>
-          </TouchableOpacity>
-        </Animated.View>
-      )}
-    </View>
-  );
 }
 
 const styles = StyleSheet.create({
@@ -129,64 +104,31 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#0d0d0d",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingBottom: 60,
+    justifyContent: "center",
   },
-  centerContent: {
-    flex: 1,
+  logoWrapper: {
     alignItems: "center",
     justifyContent: "center",
-    gap: 24,
   },
   logo: {
-    width: 110,
-    height: 110,
-    borderRadius: 24,
+    width: 150,
+    height: 150,
+    borderRadius: 28,
   },
-  textBlock: {
-    alignItems: "center",
-    gap: 8,
+  buttonWrapper: {
+    position: "absolute",
+    bottom: 60,
+    width: "85%",
   },
-  appName: {
-    color: "#ffffff",
-    fontSize: 36,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-  },
-  tagline: {
-    color: "#b8f54a",
-    fontSize: 13,
-    letterSpacing: 2,
-    opacity: 0.8,
-    textTransform: "lowercase",
-  },
-  bottomSection: {
-    width: "100%",
-    paddingHorizontal: 28,
-    gap: 16,
-    alignItems: "center",
-  },
-  getStartedBtn: {
-    width: "100%",
+  button: {
     backgroundColor: "#b8f54a",
-    borderRadius: 16,
+    borderRadius: 30,
     paddingVertical: 18,
     alignItems: "center",
   },
-  getStartedText: {
+  buttonText: {
     color: "#0d0d0d",
     fontSize: 16,
-    fontWeight: "800",
-  },
-  signInBtn: {
-    padding: 8,
-  },
-  signInText: {
-    color: "#666",
-    fontSize: 14,
-  },
-  signInLink: {
-    color: "#b8f54a",
     fontWeight: "700",
   },
 });

@@ -237,6 +237,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     paddingTop: 32,
     gap: 12,
+    paddingBottom: 40,
   },
   title: {
     fontSize: 34,
@@ -253,6 +254,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginTop: 24,
+    marginBottom: 20,
   },
   dotsContainer: { flexDirection: "row", gap: 8, alignItems: "center" },
   dot: { height: 8, borderRadius: 4 },
