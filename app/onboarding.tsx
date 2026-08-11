@@ -138,7 +138,6 @@ export default function Onboarding() {
             )}
           </TouchableOpacity>
         </View>
-
         {currentIndex === slides.length - 1 && (
           <TouchableOpacity
             onPress={() => router.replace("/(auth)/login")}
