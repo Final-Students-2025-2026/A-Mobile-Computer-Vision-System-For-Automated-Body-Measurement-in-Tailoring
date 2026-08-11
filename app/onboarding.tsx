@@ -7,40 +7,38 @@ import {
   Dimensions,
   Animated,
   FlatList,
+  StatusBar,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ChevronRight } from "lucide-react-native";
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
 
 const slides = [
   {
     id: "1",
     tag: "MEASURE",
     title: "Take accurate\nmeasurements",
-    subtitle:
-      "Capture precise body measurements in minutes using just your phone. No tape measure needed.",
-    bg: "#f0fce4",
-    accent: "#3a7d00",
+    subtitle: "Capture precise body measurements in minutes using just your phone. No tape measure needed.",
+    bg: "#0d0d0d",
+    accent: "#b8f54a",
   },
   {
     id: "2",
     tag: "CONNECT",
     title: "Send to your\ntailor anywhere",
-    subtitle:
-      "Share measurements instantly with any tailor — whether they're in Accra, Lagos or London.",
-    bg: "#f4f0fc",
-    accent: "#5a3a9e",
+    subtitle: "Share measurements instantly with any tailor — whether they're in Accra, Lagos or London.",
+    bg: "#0d0d0d",
+    accent: "#b8f54a",
   },
   {
     id: "3",
     tag: "SHOP",
     title: "Shop clothing\nthat fits perfectly",
-    subtitle:
-      "Always know your size. Find clothing that fits across any brand or store worldwide.",
-    bg: "#fef9e4",
-    accent: "#8a6500",
+    subtitle: "Always know your size. Find clothing that fits across any brand or store worldwide.",
+    bg: "#0d0d0d",
+    accent: "#b8f54a",
   },
 ];
 
@@ -60,76 +58,61 @@ export default function Onboarding() {
     }
   };
 
-  const currentSlide = slides[currentIndex];
+  const handleScroll = (e: any) => {
+    const index = Math.round(e.nativeEvent.contentOffset.x / width);
+    setCurrentIndex(index);
+  };
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: currentSlide.bg }]}
-    >
-      {/* Skip */}
-      <TouchableOpacity
-        style={styles.skipBtn}
-        onPress={() => router.replace("/(auth)/login")}
-      >
-        <Text style={[styles.skipText, { color: currentSlide.accent }]}>
-          Skip
-        </Text>
-      </TouchableOpacity>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#0d0d0d" />
 
-      {/* Slides */}
+      {/* Skip */}
+      <SafeAreaView style={styles.safeTop}>
+        <TouchableOpacity
+          style={styles.skipBtn}
+          onPress={() => router.replace("/(auth)/login")}
+        >
+          <Text style={styles.skipText}>Skip</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+
+      {/* Slides — swipeable */}
       <Animated.FlatList
         ref={flatListRef}
         data={slides}
         keyExtractor={(item) => item.id}
         horizontal
         pagingEnabled
-        scrollEnabled={false}
         showsHorizontalScrollIndicator={false}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-          { useNativeDriver: false },
+          { useNativeDriver: false }
         )}
+        onMomentumScrollEnd={handleScroll}
+        scrollEventThrottle={16}
         renderItem={({ item }) => (
           <View style={styles.slide}>
-            {/* Visual area - clean geometric shape */}
-            <View style={[styles.visualArea, { backgroundColor: item.bg }]}>
-              <View
-                style={[
-                  styles.bigCircle,
-                  { backgroundColor: `${item.accent}15` },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.medCircle,
-                    { backgroundColor: `${item.accent}25` },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.smallCircle,
-                      { backgroundColor: `${item.accent}40` },
-                    ]}
-                  />
-                </View>
-              </View>
+            {/* Visual area */}
+            <View style={styles.visualArea}>
               <Text style={[styles.tagText, { color: item.accent }]}>
                 {item.tag}
               </Text>
+              <View style={[styles.line, { backgroundColor: item.accent }]} />
+            </View>
+
+            {/* Text content */}
+            <View style={styles.textContent}>
+              <Text style={styles.title}>{item.title}</Text>
+              <Text style={styles.subtitle}>{item.subtitle}</Text>
             </View>
           </View>
         )}
       />
 
-      {/* Bottom content */}
-      <View style={styles.bottom}>
-        <Text style={[styles.title, { color: "#111" }]}>
-          {currentSlide.title}
-        </Text>
-        <Text style={styles.subtitle}>{currentSlide.subtitle}</Text>
-
-        {/* Dots + button row */}
-        <View style={styles.controlRow}>
+      {/* Bottom controls — above navigation bar */}
+      <SafeAreaView style={styles.safeBottom}>
+        <View style={styles.bottom}>
           {/* Dots */}
           <View style={styles.dotsContainer}>
             {slides.map((_, index) => {
@@ -140,7 +123,7 @@ export default function Onboarding() {
               ];
               const dotWidth = scrollX.interpolate({
                 inputRange,
-                outputRange: [8, 24, 8],
+                outputRange: [8, 28, 8],
                 extrapolate: "clamp",
               });
               const opacity = scrollX.interpolate({
@@ -153,26 +136,19 @@ export default function Onboarding() {
                   key={index}
                   style={[
                     styles.dot,
-                    {
-                      width: dotWidth,
-                      opacity,
-                      backgroundColor: currentSlide.accent,
-                    },
+                    { width: dotWidth, opacity },
                   ]}
                 />
               );
             })}
           </View>
 
-          {/* Arrow button */}
-          <TouchableOpacity
-            style={[styles.nextBtn, { backgroundColor: currentSlide.accent }]}
-            onPress={handleNext}
-          >
+          {/* Next button */}
+          <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
             {currentIndex === slides.length - 1 ? (
-              <Text style={styles.nextBtnText}>Go</Text>
+              <Text style={styles.nextBtnText}>Start</Text>
             ) : (
-              <ChevronRight color="#fff" size={24} />
+              <ChevronRight color="#0d0d0d" size={24} />
             )}
           </TouchableOpacity>
         </View>
@@ -185,88 +161,87 @@ export default function Onboarding() {
           >
             <Text style={styles.signinText}>
               Already have an account?{" "}
-              <Text style={[styles.signinLink, { color: currentSlide.accent }]}>
-                Sign in
-              </Text>
+              <Text style={styles.signinLink}>Sign in</Text>
             </Text>
           </TouchableOpacity>
         )}
-      </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  skipBtn: { alignSelf: "flex-end", padding: 20 },
-  skipText: { fontSize: 14, fontWeight: "500" },
-  slide: { width },
-  visualArea: {
-    height: 340,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bigCircle: {
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  medCircle: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  smallCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-  },
-  tagText: {
-    position: "absolute",
-    bottom: 30,
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 4,
-  },
-  bottom: {
+  container: { flex: 1, backgroundColor: "#0d0d0d" },
+  safeTop: { paddingHorizontal: 20 },
+  skipBtn: { alignSelf: "flex-end", padding: 16 },
+  skipText: { color: "#666", fontSize: 14, fontWeight: "500" },
+  slide: {
+    width,
     flex: 1,
     paddingHorizontal: 32,
-    paddingTop: 32,
-    gap: 12,
-    paddingBottom: 40,
+    justifyContent: "center",
+  },
+  visualArea: {
+    height: height * 0.35,
+    justifyContent: "flex-end",
+    paddingBottom: 32,
+    gap: 16,
+  },
+  tagText: {
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 5,
+  },
+  line: {
+    width: 40,
+    height: 3,
+    borderRadius: 2,
+  },
+  textContent: {
+    gap: 16,
+    paddingBottom: 20,
   },
   title: {
-    fontSize: 34,
+    color: "#ffffff",
+    fontSize: 38,
     fontWeight: "800",
-    lineHeight: 42,
+    lineHeight: 46,
   },
   subtitle: {
     color: "#666",
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 16,
+    lineHeight: 24,
   },
-  controlRow: {
+  safeBottom: {
+    paddingHorizontal: 32,
+    paddingBottom: 8,
+  },
+  bottom: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 24,
-    marginBottom: 20,
+    paddingVertical: 16,
   },
   dotsContainer: { flexDirection: "row", gap: 8, alignItems: "center" },
-  dot: { height: 8, borderRadius: 4 },
+  dot: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#b8f54a",
+  },
   nextBtn: {
     width: 56,
     height: 56,
     borderRadius: 28,
+    backgroundColor: "#b8f54a",
     alignItems: "center",
     justifyContent: "center",
   },
-  nextBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  signinRow: { alignItems: "center", marginTop: 8 },
-  signinText: { color: "#888", fontSize: 14 },
-  signinLink: { fontWeight: "600" },
+  nextBtnText: {
+    color: "#0d0d0d",
+    fontWeight: "800",
+    fontSize: 14,
+  },
+  signinRow: { alignItems: "center", paddingBottom: 8 },
+  signinText: { color: "#666", fontSize: 14 },
+  signinLink: { color: "#b8f54a", fontWeight: "700" },
 });
