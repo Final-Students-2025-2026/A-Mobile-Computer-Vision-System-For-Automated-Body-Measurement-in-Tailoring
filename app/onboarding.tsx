@@ -18,27 +18,23 @@ const { width, height } = Dimensions.get("window");
 const slides = [
   {
     id: "1",
-    tag: "MEASURE",
+    number: "01",
     title: "Take accurate\nmeasurements",
-    subtitle: "Capture precise body measurements in minutes using just your phone. No tape measure needed.",
-    bg: "#0d0d0d",
-    accent: "#b8f54a",
+    subtitle:
+      "Capture precise body measurements in minutes using just your phone.",
   },
   {
     id: "2",
-    tag: "CONNECT",
+    number: "02",
     title: "Send to your\ntailor anywhere",
-    subtitle: "Share measurements instantly with any tailor — whether they're in Accra, Lagos or London.",
-    bg: "#0d0d0d",
-    accent: "#b8f54a",
+    subtitle:
+      "Share measurements instantly with any tailor in Accra, Lagos or London.",
   },
   {
     id: "3",
-    tag: "SHOP",
+    number: "03",
     title: "Shop clothing\nthat fits perfectly",
-    subtitle: "Always know your size. Find clothing that fits across any brand or store worldwide.",
-    bg: "#0d0d0d",
-    accent: "#b8f54a",
+    subtitle: "Always know your size across any brand or store worldwide.",
   },
 ];
 
@@ -65,10 +61,10 @@ export default function Onboarding() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0d0d0d" />
+      <StatusBar barStyle="light-content" backgroundColor="#111111" />
 
       {/* Skip */}
-      <SafeAreaView style={styles.safeTop}>
+      <SafeAreaView>
         <TouchableOpacity
           style={styles.skipBtn}
           onPress={() => router.replace("/(auth)/login")}
@@ -77,7 +73,7 @@ export default function Onboarding() {
         </TouchableOpacity>
       </SafeAreaView>
 
-      {/* Slides — swipeable */}
+      {/* Slides */}
       <Animated.FlatList
         ref={flatListRef}
         data={slides}
@@ -87,30 +83,23 @@ export default function Onboarding() {
         showsHorizontalScrollIndicator={false}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-          { useNativeDriver: false }
+          { useNativeDriver: false },
         )}
         onMomentumScrollEnd={handleScroll}
         scrollEventThrottle={16}
         renderItem={({ item }) => (
           <View style={styles.slide}>
-            {/* Visual area */}
-            <View style={styles.visualArea}>
-              <Text style={[styles.tagText, { color: item.accent }]}>
-                {item.tag}
-              </Text>
-              <View style={[styles.line, { backgroundColor: item.accent }]} />
-            </View>
-
-            {/* Text content */}
-            <View style={styles.textContent}>
-              <Text style={styles.title}>{item.title}</Text>
-              <Text style={styles.subtitle}>{item.subtitle}</Text>
-            </View>
+            {/* Big number */}
+            <Text style={styles.bigNumber}>{item.number}</Text>
+            {/* Title */}
+            <Text style={styles.title}>{item.title}</Text>
+            {/* Subtitle */}
+            <Text style={styles.subtitle}>{item.subtitle}</Text>
           </View>
         )}
       />
 
-      {/* Bottom controls — above navigation bar */}
+      {/* Bottom */}
       <SafeAreaView style={styles.safeBottom}>
         <View style={styles.bottom}>
           {/* Dots */}
@@ -134,10 +123,7 @@ export default function Onboarding() {
               return (
                 <Animated.View
                   key={index}
-                  style={[
-                    styles.dot,
-                    { width: dotWidth, opacity },
-                  ]}
+                  style={[styles.dot, { width: dotWidth, opacity }]}
                 />
               );
             })}
@@ -148,12 +134,11 @@ export default function Onboarding() {
             {currentIndex === slides.length - 1 ? (
               <Text style={styles.nextBtnText}>Start</Text>
             ) : (
-              <ChevronRight color="#0d0d0d" size={24} />
+              <ChevronRight color="#111" size={24} strokeWidth={2.5} />
             )}
           </TouchableOpacity>
         </View>
 
-        {/* Sign in link on last slide */}
         {currentIndex === slides.length - 1 && (
           <TouchableOpacity
             onPress={() => router.replace("/(auth)/login")}
@@ -171,51 +156,45 @@ export default function Onboarding() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0d0d0d" },
-  safeTop: { paddingHorizontal: 20 },
-  skipBtn: { alignSelf: "flex-end", padding: 16 },
-  skipText: { color: "#666", fontSize: 14, fontWeight: "500" },
+  container: { flex: 1, backgroundColor: "#111111" },
+  skipBtn: {
+    alignSelf: "flex-end",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  skipText: {
+    color: "#555",
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_500Medium",
+  },
   slide: {
     width,
     flex: 1,
     paddingHorizontal: 32,
     justifyContent: "center",
+    gap: 20,
   },
-  visualArea: {
-    height: height * 0.35,
-    justifyContent: "flex-end",
-    paddingBottom: 32,
-    gap: 16,
-  },
-  tagText: {
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 5,
-  },
-  line: {
-    width: 40,
-    height: 3,
-    borderRadius: 2,
-  },
-  textContent: {
-    gap: 16,
-    paddingBottom: 20,
+  bigNumber: {
+    color: "#b8f54a",
+    fontSize: 80,
+    fontFamily: "PlusJakartaSans_800ExtraBold",
+    opacity: 0.15,
+    lineHeight: 80,
   },
   title: {
     color: "#ffffff",
-    fontSize: 38,
-    fontWeight: "800",
-    lineHeight: 46,
+    fontSize: 36,
+    fontFamily: "PlusJakartaSans_800ExtraBold",
+    lineHeight: 44,
+    marginTop: -16,
   },
   subtitle: {
     color: "#666",
     fontSize: 16,
+    fontFamily: "PlusJakartaSans_400Regular",
     lineHeight: 24,
   },
-  safeBottom: {
-    paddingHorizontal: 32,
-    paddingBottom: 8,
-  },
+  safeBottom: { paddingHorizontal: 32, paddingBottom: 8 },
   bottom: {
     flexDirection: "row",
     alignItems: "center",
@@ -223,11 +202,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   dotsContainer: { flexDirection: "row", gap: 8, alignItems: "center" },
-  dot: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#b8f54a",
-  },
+  dot: { height: 8, borderRadius: 4, backgroundColor: "#b8f54a" },
   nextBtn: {
     width: 56,
     height: 56,
@@ -237,11 +212,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   nextBtnText: {
-    color: "#0d0d0d",
-    fontWeight: "800",
+    color: "#111",
+    fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 14,
   },
   signinRow: { alignItems: "center", paddingBottom: 8 },
-  signinText: { color: "#666", fontSize: 14 },
-  signinLink: { color: "#b8f54a", fontWeight: "700" },
+  signinText: {
+    color: "#555",
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_400Regular",
+  },
+  signinLink: {
+    color: "#b8f54a",
+    fontFamily: "PlusJakartaSans_700Bold",
+  },
 });
