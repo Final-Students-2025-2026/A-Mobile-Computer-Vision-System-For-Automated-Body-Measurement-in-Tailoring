@@ -28,13 +28,13 @@ const slides = [
     number: "02",
     title: "Send to your\ntailor anywhere",
     subtitle:
-      "Share measurements instantly with any tailor in Accra, Lagos or London.",
+      "Share measurements instantly with any tailor in Accra, Lagos, or in any part of the world.",
   },
   {
     id: "3",
     number: "03",
     title: "Shop clothing\nthat fits perfectly",
-    subtitle: "Always know your size across any brand or store worldwide.",
+    subtitle: "Always know your size and shop for clothes that fit perfectly across any brand or store worldwide.",
   },
 ];
 
