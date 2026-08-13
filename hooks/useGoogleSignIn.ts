@@ -15,31 +15,31 @@ export function useGoogleSignIn() {
   const [error, setError] = useState("");
 
   const signInWithGoogle = async () => {
-  setError("");
-  setLoading(true);
-  try {
-    await GoogleSignin.hasPlayServices();
-    await GoogleSignin.signIn();
-    const { idToken } = await GoogleSignin.getTokens();
-    
-    if (!idToken) throw new Error("No ID token received");
+    setError("");
+    setLoading(true);
+    try {
+      await GoogleSignin.hasPlayServices();
+      await GoogleSignin.signIn();
+      const { idToken } = await GoogleSignin.getTokens();
 
-    const credential = GoogleAuthProvider.credential(idToken);
-    await signInWithCredential(auth, credential);
-  } catch (e: any) {
-    if (e.code === statusCodes.SIGN_IN_CANCELLED) {
-      setError("Sign in cancelled");
-    } else if (e.code === statusCodes.IN_PROGRESS) {
-      setError("Sign in already in progress");
-    } else if (e.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
-      setError("Play services not available");
-    } else {
-      setError(e.message || "Google sign in failed");
+      if (!idToken) throw new Error("No ID token received");
+
+      const credential = GoogleAuthProvider.credential(idToken);
+      await signInWithCredential(auth, credential);
+    } catch (e: any) {
+      if (e.code === statusCodes.SIGN_IN_CANCELLED) {
+        setError("Sign in cancelled");
+      } else if (e.code === statusCodes.IN_PROGRESS) {
+        setError("Sign in already in progress");
+      } else if (e.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        setError("Play services not available");
+      } else {
+        setError(e.message || "Google sign in failed");
+      }
+    } finally {
+      setLoading(false);
     }
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   return { signInWithGoogle, loading, error };
 }
