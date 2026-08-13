@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Eye, EyeOff, ChevronLeft } from "lucide-react-native";
+import { Eye, EyeOff } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -50,50 +50,40 @@ export default function Login() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Back button */}
-          <TouchableOpacity
-            style={styles.backBtn}
-            onPress={() => router.back()}
-          >
-            <ChevronLeft color="#fff" size={24} />
-          </TouchableOpacity>
-
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Welcome back 👋</Text>
-            <Text style={styles.subtitle}>Sign in to your account</Text>
+            <Text style={styles.title}>Welcome Back</Text>
+            <Text style={styles.subtitle}>Please sign in to your account</Text>
           </View>
 
           {/* Form */}
           <View style={styles.form}>
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
-            <Text style={styles.label}>Email</Text>
             <TextInput
               style={styles.input}
-              placeholder="Your email"
-              placeholderTextColor="#444"
+              placeholder="Email or Username"
+              placeholderTextColor="#555"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
             />
 
-            <Text style={styles.label}>Password</Text>
             <View style={styles.passwordWrapper}>
               <TextInput
                 style={styles.passwordInput}
-                placeholder="Your password"
-                placeholderTextColor="#444"
+                placeholder="Password"
+                placeholderTextColor="#555"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                 {showPassword ? (
-                  <Eye color="#666" size={20} />
+                  <Eye color="#555" size={20} />
                 ) : (
-                  <EyeOff color="#666" size={20} />
+                  <EyeOff color="#555" size={20} />
                 )}
               </TouchableOpacity>
             </View>
@@ -102,51 +92,52 @@ export default function Login() {
               onPress={() => router.push("/(auth)/forgotPassword")}
               style={styles.forgotBtn}
             >
-              <Text style={styles.forgotText}>Forgot Password?</Text>
+              <Text style={styles.forgotText}>Forgot password?</Text>
             </TouchableOpacity>
           </View>
 
-          {/* Bottom */}
-          <View style={styles.bottom}>
-            <TouchableOpacity
-              style={[styles.loginBtn, loading && { opacity: 0.7 }]}
-              onPress={handleLogin}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#111" />
-              ) : (
-                <Text style={styles.loginBtnText}>Login</Text>
-              )}
-            </TouchableOpacity>
+          {/* Sign In Button */}
+          <TouchableOpacity
+            style={[styles.signInBtn, loading && { opacity: 0.7 }]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#111" />
+            ) : (
+              <Text style={styles.signInBtnText}>Sign In</Text>
+            )}
+          </TouchableOpacity>
 
-            <View style={styles.orRow}>
-              <View style={styles.divider} />
-              <Text style={styles.orText}>Or with</Text>
-              <View style={styles.divider} />
-            </View>
+          {/* Or continue with */}
+          <View style={styles.orRow}>
+            <View style={styles.divider} />
+            <Text style={styles.orText}>Or continue with</Text>
+            <View style={styles.divider} />
+          </View>
 
-            <TouchableOpacity style={styles.googleBtn}>
+          {/* Social buttons */}
+          <View style={styles.socialRow}>
+            <TouchableOpacity style={styles.socialBtn}>
               <Image
                 source={require("../../assets/icons/google.png")}
-                style={styles.googleIcon}
+                style={styles.socialIcon}
               />
-              <Text style={styles.googleText}>Sign in with Google</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
-              style={styles.phoneBtn}
+              style={styles.socialBtn}
               onPress={() => router.push("/(auth)/phoneLogin")}
             >
-              <Text style={styles.phoneBtnText}>Sign in with Phone</Text>
+              <Text style={styles.phoneIcon}>📱</Text>
             </TouchableOpacity>
+          </View>
 
-            <View style={styles.signupRow}>
-              <Text style={styles.signupText}>Don't have an account? </Text>
-              <TouchableOpacity onPress={() => router.push("/(auth)/signup")}>
-                <Text style={styles.signupLink}>Sign Up</Text>
-              </TouchableOpacity>
-            </View>
+          {/* Sign up */}
+          <View style={styles.signupRow}>
+            <Text style={styles.signupText}>Don't have an account? </Text>
+            <TouchableOpacity onPress={() => router.push("/(auth)/signup")}>
+              <Text style={styles.signupLink}>Sign Up</Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -156,41 +147,39 @@ export default function Login() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#111111" },
-  scroll: { flexGrow: 1, paddingHorizontal: 28, paddingBottom: 40 },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#1e1e1e",
-    alignItems: "center",
+  scroll: {
+    flexGrow: 1,
+    paddingHorizontal: 28,
+    paddingBottom: 40,
     justifyContent: "center",
-    marginTop: 16,
-    marginBottom: 32,
   },
-  header: { marginBottom: 36, gap: 8 },
+  header: {
+    marginBottom: 40,
+    marginTop: 20,
+  },
   title: {
     color: "#ffffff",
-    fontSize: 30,
+    fontSize: 32,
     fontFamily: "PlusJakartaSans_800ExtraBold",
+    marginBottom: 8,
   },
   subtitle: {
     color: "#666",
     fontSize: 15,
     fontFamily: "PlusJakartaSans_400Regular",
   },
-  form: { gap: 4, marginBottom: 32 },
-  label: {
-    color: "#888",
+  form: { gap: 14, marginBottom: 24 },
+  error: {
+    color: "#ff6b6b",
     fontSize: 13,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    marginBottom: 8,
-    marginTop: 16,
+    textAlign: "center",
+    fontFamily: "PlusJakartaSans_400Regular",
   },
   input: {
     backgroundColor: "#1e1e1e",
     borderRadius: 14,
-    paddingVertical: 16,
-    paddingHorizontal: 18,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
     color: "#fff",
     fontSize: 15,
     fontFamily: "PlusJakartaSans_400Regular",
@@ -200,78 +189,65 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#1e1e1e",
     borderRadius: 14,
-    paddingHorizontal: 18,
+    paddingHorizontal: 20,
   },
   passwordInput: {
     flex: 1,
     color: "#fff",
-    paddingVertical: 16,
+    paddingVertical: 18,
     fontSize: 15,
     fontFamily: "PlusJakartaSans_400Regular",
   },
-  forgotBtn: { alignSelf: "flex-end", marginTop: 12 },
+  forgotBtn: { alignSelf: "flex-end" },
   forgotText: {
     color: "#b8f54a",
     fontSize: 13,
     fontFamily: "PlusJakartaSans_600SemiBold",
   },
-  error: {
-    color: "#ff6b6b",
-    fontSize: 13,
-    textAlign: "center",
-    fontFamily: "PlusJakartaSans_400Regular",
-  },
-  bottom: { gap: 14 },
-  loginBtn: {
-    backgroundColor: "#b8f54a",
-    borderRadius: 16,
+  signInBtn: {
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
     paddingVertical: 18,
     alignItems: "center",
+    marginBottom: 28,
   },
-  loginBtnText: {
+  signInBtnText: {
     color: "#111",
     fontSize: 16,
     fontFamily: "PlusJakartaSans_700Bold",
   },
-  orRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  orRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 24,
+  },
   divider: { flex: 1, height: 1, backgroundColor: "#222" },
   orText: {
     color: "#555",
     fontSize: 13,
     fontFamily: "PlusJakartaSans_400Regular",
   },
-  googleBtn: {
+  socialRow: {
     flexDirection: "row",
+    justifyContent: "center",
+    gap: 16,
+    marginBottom: 32,
+  },
+  socialBtn: {
+    width: 60,
+    height: 60,
+    borderRadius: 16,
+    backgroundColor: "#1e1e1e",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#1e1e1e",
-    borderRadius: 16,
-    paddingVertical: 16,
-    gap: 10,
   },
-  googleIcon: { width: 20, height: 20 },
-  googleText: {
-    color: "#fff",
-    fontSize: 15,
-    fontFamily: "PlusJakartaSans_500Medium",
-  },
-  phoneBtn: {
-    borderWidth: 1,
-    borderColor: "#2a2a2a",
-    borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  phoneBtnText: {
-    color: "#fff",
-    fontSize: 15,
-    fontFamily: "PlusJakartaSans_500Medium",
-  },
+  socialIcon: { width: 24, height: 24 },
+  phoneIcon: { fontSize: 24 },
   signupRow: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 8,
   },
   signupText: {
     color: "#555",
