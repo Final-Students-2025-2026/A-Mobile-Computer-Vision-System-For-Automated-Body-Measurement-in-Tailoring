@@ -14,52 +14,41 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ChevronLeft, ChevronDown } from "lucide-react-native";
-
-// Common country codes
-const COUNTRIES = [
-  { flag: "🇬🇭", code: "+233", name: "Ghana" },
-  { flag: "🇳🇬", code: "+234", name: "Nigeria" },
-  { flag: "🇿🇦", code: "+27", name: "South Africa" },
-  { flag: "🇰🇪", code: "+254", name: "Kenya" },
-  { flag: "🇬🇧", code: "+44", name: "United Kingdom" },
-  { flag: "🇺🇸", code: "+1", name: "United States" },
-  { flag: "🇨🇦", code: "+1", name: "Canada" },
-  { flag: "🇩🇪", code: "+49", name: "Germany" },
-  { flag: "🇫🇷", code: "+33", name: "France" },
-  { flag: "🇮🇳", code: "+91", name: "India" },
-  { flag: "🇦🇺", code: "+61", name: "Australia" },
-  { flag: "🇧🇷", code: "+55", name: "Brazil" },
-  { flag: "🇨🇳", code: "+86", name: "China" },
-  { flag: "🇯🇵", code: "+81", name: "Japan" },
-  { flag: "🇿🇼", code: "+263", name: "Zimbabwe" },
-  { flag: "🇹🇿", code: "+255", name: "Tanzania" },
-  { flag: "🇺🇬", code: "+256", name: "Uganda" },
-  { flag: "🇸🇳", code: "+221", name: "Senegal" },
-  { flag: "🇨🇮", code: "+225", name: "Ivory Coast" },
-  { flag: "🇪🇹", code: "+251", name: "Ethiopia" },
-];
+import CountryPicker, {
+  Country,
+  CountryCode,
+} from "react-native-country-picker-modal";
+import { useGoogleSignIn } from "../../hooks/useGoogleSignIn";
 
 type Step = "phone" | "otp" | "name";
 
 export default function PhoneLogin() {
   const router = useRouter();
+  const { signInWithGoogle, loading: googleLoading, error: googleError } = useGoogleSignIn();
+  
   const [step, setStep] = useState<Step>("phone");
-  const [selectedCountry, setSelectedCountry] = useState(COUNTRIES[0]);
-  const [showCountryPicker, setShowCountryPicker] = useState(false);
+  const [countryCode, setCountryCode] = useState<CountryCode>("GH");
+  const [callingCode, setCallingCode] = useState("233");
+  const [showPicker, setShowPicker] = useState(false);
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const onSelectCountry = (country: Country) => {
+    setCountryCode(country.cca2);
+    setCallingCode(country.callingCode[0]);
+    setShowPicker(false);
+  };
+
   const handleSendOTP = async () => {
-    if (!phone || phone.length < 6)
-      return setError("Enter a valid phone number");
+    if (!phone || phone.length < 6) return setError("Enter a valid phone number");
     setError("");
     setLoading(true);
     try {
       // TODO: Firebase phone auth
-      // const confirmation = await signInWithPhoneNumber(auth, `${selectedCountry.code}${phone}`);
+      // const confirmation = await signInWithPhoneNumber(auth, `+${callingCode}${phone}`);
       setStep("otp");
     } catch (e: any) {
       setError(e.message || "Could not send OTP");
@@ -81,6 +70,8 @@ export default function PhoneLogin() {
     setLoading(true);
     try {
       // TODO: Firebase OTP verification
+      // const credential = PhoneAuthProvider.credential(verificationId, code);
+      // await signInWithCredential(auth, credential);
       setStep("name");
     } catch (e: any) {
       setError("Invalid code. Please try again.");
@@ -91,7 +82,7 @@ export default function PhoneLogin() {
 
   const handleSaveName = () => {
     if (!name.trim()) return setError("Please enter your name");
-    // TODO: Save name to Firestore
+    // TODO: Save name to Firestore user profile
     router.replace("/(tabs)");
   };
 
@@ -104,6 +95,7 @@ export default function PhoneLogin() {
         <ScrollView
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           {/* Back button */}
           <TouchableOpacity
@@ -122,21 +114,39 @@ export default function PhoneLogin() {
             <View style={styles.stepContainer}>
               <Text style={styles.title}>Sign In</Text>
               <Text style={styles.subtitle}>
-                Enter your phone number.{"\n"}We will send you a verification
-                code.
+                Enter your phone number.{"\n"}
+                We will send you a verification code.
               </Text>
 
               {error ? <Text style={styles.error}>{error}</Text> : null}
+              {googleError ? <Text style={styles.error}>{googleError}</Text> : null}
 
               {/* Phone input row */}
               <View style={styles.phoneRow}>
                 <TouchableOpacity
                   style={styles.countryBtn}
-                  onPress={() => setShowCountryPicker(!showCountryPicker)}
+                  onPress={() => setShowPicker(true)}
                 >
-                  <Text style={styles.countryFlag}>{selectedCountry.flag}</Text>
-                  <Text style={styles.countryCode}>{selectedCountry.code}</Text>
-                  <ChevronDown color="#888" size={16} />
+                  <CountryPicker
+                    countryCode={countryCode}
+                    withFilter
+                    withFlag
+                    withCallingCode
+                    withEmoji
+                    onSelect={onSelectCountry}
+                    visible={showPicker}
+                    onClose={() => setShowPicker(false)}
+                    theme={{
+                      backgroundColor: "#1e1e1e",
+                      onBackgroundTextColor: "#fff",
+                      fontSize: 14,
+                      filterPlaceholderTextColor: "#666",
+                      activeOpacity: 0.7,
+                      itemHeight: 48,
+                    }}
+                  />
+                  <Text style={styles.callingCode}>+{callingCode}</Text>
+                  <ChevronDown color="#888" size={14} />
                 </TouchableOpacity>
 
                 <TextInput
@@ -149,49 +159,33 @@ export default function PhoneLogin() {
                 />
               </View>
 
-              {/* Country picker dropdown */}
-              {showCountryPicker && (
-                <View style={styles.countryList}>
-                  <ScrollView style={{ maxHeight: 250 }} nestedScrollEnabled>
-                    {COUNTRIES.map((country, index) => (
-                      <TouchableOpacity
-                        key={index}
-                        style={styles.countryItem}
-                        onPress={() => {
-                          setSelectedCountry(country);
-                          setShowCountryPicker(false);
-                        }}
-                      >
-                        <Text style={styles.countryItemFlag}>
-                          {country.flag}
-                        </Text>
-                        <Text style={styles.countryItemName}>
-                          {country.name}
-                        </Text>
-                        <Text style={styles.countryItemCode}>
-                          {country.code}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-
+              {/* Or divider */}
               <View style={styles.orRow}>
                 <View style={styles.divider} />
                 <Text style={styles.orText}>Or</Text>
                 <View style={styles.divider} />
               </View>
 
-              {/* Google */}
-              <TouchableOpacity style={styles.googleBtn}>
-                <Image
-                  source={require("../../assets/icons/google.png")}
-                  style={styles.googleIcon}
-                />
-                <Text style={styles.googleText}>Sign in with Google</Text>
+              {/* Google Sign In */}
+              <TouchableOpacity
+                style={styles.googleBtn}
+                onPress={signInWithGoogle}
+                disabled={googleLoading}
+              >
+                {googleLoading ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Image
+                      source={require("../../assets/icons/google.png")}
+                      style={styles.googleIcon}
+                    />
+                    <Text style={styles.googleText}>Sign in with Google</Text>
+                  </>
+                )}
               </TouchableOpacity>
 
+              {/* Sign up link */}
               <View style={styles.signupRow}>
                 <Text style={styles.signupText}>Already have an account? </Text>
                 <TouchableOpacity onPress={() => router.push("/(auth)/signup")}>
@@ -199,15 +193,16 @@ export default function PhoneLogin() {
                 </TouchableOpacity>
               </View>
 
+              {/* Send code button */}
               <TouchableOpacity
-                style={[styles.sendBtn, loading && { opacity: 0.7 }]}
+                style={[styles.actionBtn, loading && { opacity: 0.7 }]}
                 onPress={handleSendOTP}
                 disabled={loading}
               >
                 {loading ? (
                   <ActivityIndicator color="#111" />
                 ) : (
-                  <Text style={styles.sendBtnText}>Send code</Text>
+                  <Text style={styles.actionBtnText}>Send code</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -216,26 +211,24 @@ export default function PhoneLogin() {
           {/* OTP STEP */}
           {step === "otp" && (
             <View style={styles.stepContainer}>
-              <Text style={styles.title}>Verification{"\n"}Email</Text>
+              <Text style={styles.title}>Verification{"\n"}Code</Text>
               <Text style={styles.subtitle}>
                 Please enter the code we just sent to{"\n"}
                 <Text style={styles.phoneHighlight}>
-                  {selectedCountry.code} {phone}
+                  +{callingCode} {phone}
                 </Text>
               </Text>
 
               {error ? <Text style={styles.error}>{error}</Text> : null}
 
-              {/* PIN dots */}
+              {/* OTP boxes */}
               <View style={styles.otpRow}>
                 {otp.map((digit, index) => (
                   <TextInput
                     key={index}
-                    style={[styles.otpBox, digit && styles.otpBoxFilled]}
+                    style={[styles.otpBox, digit ? styles.otpBoxFilled : null]}
                     value={digit}
-                    onChangeText={(val) =>
-                      handleOTPChange(val.slice(-1), index)
-                    }
+                    onChangeText={(val) => handleOTPChange(val.slice(-1), index)}
                     keyboardType="number-pad"
                     maxLength={1}
                     textAlign="center"
@@ -244,24 +237,25 @@ export default function PhoneLogin() {
                 ))}
               </View>
 
+              {/* Resend */}
               <View style={styles.resendRow}>
                 <Text style={styles.resendText}>
-                  If you didn't receive a code?{" "}
+                  Didn't receive a code?{" "}
                 </Text>
-                <TouchableOpacity onPress={() => setStep("phone")}>
+                <TouchableOpacity onPress={handleSendOTP}>
                   <Text style={styles.resendLink}>Resend</Text>
                 </TouchableOpacity>
               </View>
 
               <TouchableOpacity
-                style={[styles.sendBtn, loading && { opacity: 0.7 }]}
+                style={[styles.actionBtn, loading && { opacity: 0.7 }]}
                 onPress={handleVerifyOTP}
                 disabled={loading}
               >
                 {loading ? (
                   <ActivityIndicator color="#111" />
                 ) : (
-                  <Text style={styles.sendBtnText}>Continue</Text>
+                  <Text style={styles.actionBtnText}>Continue</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -287,8 +281,11 @@ export default function PhoneLogin() {
                 autoFocus
               />
 
-              <TouchableOpacity style={styles.sendBtn} onPress={handleSaveName}>
-                <Text style={styles.sendBtnText}>Continue</Text>
+              <TouchableOpacity
+                style={styles.actionBtn}
+                onPress={handleSaveName}
+              >
+                <Text style={styles.actionBtnText}>Continue</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -300,7 +297,10 @@ export default function PhoneLogin() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#111111" },
-  scroll: { flexGrow: 1, padding: 28 },
+  scroll: {
+    flexGrow: 1,
+    padding: 28,
+  },
   backBtn: {
     width: 40,
     height: 40,
@@ -336,6 +336,7 @@ const styles = StyleSheet.create({
   phoneRow: {
     flexDirection: "row",
     gap: 12,
+    alignItems: "center",
   },
   countryBtn: {
     flexDirection: "row",
@@ -346,8 +347,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     gap: 6,
   },
-  countryFlag: { fontSize: 20 },
-  countryCode: {
+  callingCode: {
     color: "#fff",
     fontSize: 15,
     fontFamily: "PlusJakartaSans_500Medium",
@@ -360,31 +360,6 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     color: "#fff",
     fontSize: 15,
-    fontFamily: "PlusJakartaSans_400Regular",
-  },
-  countryList: {
-    backgroundColor: "#1e1e1e",
-    borderRadius: 14,
-    overflow: "hidden",
-  },
-  countryItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 14,
-    gap: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#2a2a2a",
-  },
-  countryItemFlag: { fontSize: 20 },
-  countryItemName: {
-    flex: 1,
-    color: "#fff",
-    fontSize: 14,
-    fontFamily: "PlusJakartaSans_400Regular",
-  },
-  countryItemCode: {
-    color: "#666",
-    fontSize: 13,
     fontFamily: "PlusJakartaSans_400Regular",
   },
   orRow: {
@@ -428,14 +403,14 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 14,
   },
-  sendBtn: {
+  actionBtn: {
     backgroundColor: "#b8f54a",
     borderRadius: 14,
     paddingVertical: 18,
     alignItems: "center",
     marginTop: 8,
   },
-  sendBtnText: {
+  actionBtnText: {
     color: "#111",
     fontSize: 16,
     fontFamily: "PlusJakartaSans_700Bold",
