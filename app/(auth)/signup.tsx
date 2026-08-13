@@ -9,6 +9,7 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Eye, EyeOff } from "lucide-react-native";
@@ -33,7 +34,8 @@ export default function Signup() {
     if (!email.trim()) return setError("Email is required");
     if (!password) return setError("Password is required");
     if (password !== confirmPassword) return setError("Passwords do not match");
-    if (password.length < 6) return setError("Password must be at least 6 characters");
+    if (password.length < 6)
+      return setError("Password must be at least 6 characters");
     try {
       setLoading(true);
       await signup(email.trim(), password, name.trim());
@@ -58,9 +60,7 @@ export default function Signup() {
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>Register Now</Text>
-            <Text style={styles.subtitle}>
-              Become a part of our community
-            </Text>
+            <Text style={styles.subtitle}>Become a part of our community</Text>
           </View>
 
           {/* Form */}
@@ -96,10 +96,11 @@ export default function Signup() {
                 secureTextEntry={!showPassword}
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                {showPassword
-                  ? <Eye color="#555" size={20} />
-                  : <EyeOff color="#555" size={20} />
-                }
+                {showPassword ? (
+                  <Eye color="#555" size={20} />
+                ) : (
+                  <EyeOff color="#555" size={20} />
+                )}
               </TouchableOpacity>
             </View>
 
@@ -113,10 +114,11 @@ export default function Signup() {
                 secureTextEntry={!showConfirm}
               />
               <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)}>
-                {showConfirm
-                  ? <Eye color="#555" size={20} />
-                  : <EyeOff color="#555" size={20} />
-                }
+                {showConfirm ? (
+                  <Eye color="#555" size={20} />
+                ) : (
+                  <EyeOff color="#555" size={20} />
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -127,10 +129,11 @@ export default function Signup() {
             onPress={handleSignup}
             disabled={loading}
           >
-            {loading
-              ? <ActivityIndicator color="#111" />
-              : <Text style={styles.signUpBtnText}>Sign Up</Text>
-            }
+            {loading ? (
+              <ActivityIndicator color="#111" />
+            ) : (
+              <Text style={styles.signUpBtnText}>Sign Up</Text>
+            )}
           </TouchableOpacity>
 
           {/* Or continue with */}
@@ -140,13 +143,18 @@ export default function Signup() {
             <View style={styles.divider} />
           </View>
 
-          {/* Social */}
           <View style={styles.socialRow}>
             <TouchableOpacity style={styles.socialBtn}>
-              <Text style={styles.socialEmoji}>G</Text>
+              <Image
+                source={require("../../assets/icons/google.png")}
+                style={styles.socialIcon}
+              />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.socialBtn}>
-              <Text style={styles.socialEmoji}>📱</Text>
+            <TouchableOpacity
+              style={styles.socialBtn}
+              onPress={() => router.push("/(auth)/phoneLogin")}
+            >
+              <Text style={styles.phoneIcon}>📱</Text>
             </TouchableOpacity>
           </View>
 
@@ -257,10 +265,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  socialEmoji: {
-    color: "#fff",
-    fontSize: 20,
-    fontFamily: "PlusJakartaSans_700Bold",
+  socialIcon: { width: 24, height: 24 },
+  phoneIcon: { fontSize: 24 },
+  signupRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
   },
   terms: {
     color: "#555",
