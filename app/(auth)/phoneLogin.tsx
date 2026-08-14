@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -14,18 +14,25 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ChevronLeft, ChevronDown } from "lucide-react-native";
-import CountryPicker, {
-  Country,
-  CountryCode,
-} from "react-native-country-picker-modal";
+import CountryPicker, { Country, CountryCode } from "react-native-country-picker-modal";
 import { useGoogleSignIn } from "../../hooks/useGoogleSignIn";
+import { auth } from "../../config/firebase";
+import {
+  signInWithPhoneNumber,
+  PhoneAuthProvider,
+  signInWithCredential,
+  ConfirmationResult,
+  updateProfile,
+} from "firebase/auth";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "../../config/firebase";
 
 type Step = "phone" | "otp" | "name";
 
 export default function PhoneLogin() {
   const router = useRouter();
   const { signInWithGoogle, loading: googleLoading, error: googleError } = useGoogleSignIn();
-  
+
   const [step, setStep] = useState<Step>("phone");
   const [countryCode, setCountryCode] = useState<CountryCode>("GH");
   const [callingCode, setCallingCode] = useState("233");
@@ -35,6 +42,7 @@ export default function PhoneLogin() {
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const confirmationRef = useRef<ConfirmationResult | null>(null);
 
   const onSelectCountry = (country: Country) => {
     setCountryCode(country.cca2);
@@ -47,11 +55,12 @@ export default function PhoneLogin() {
     setError("");
     setLoading(true);
     try {
-      // TODO: Firebase phone auth
-      // const confirmation = await signInWithPhoneNumber(auth, `+${callingCode}${phone}`);
+      const fullPhone = `+${callingCode}${phone}`;
+      const confirmation = await signInWithPhoneNumber(auth, fullPhone);
+      confirmationRef.current = confirmation;
       setStep("otp");
     } catch (e: any) {
-      setError(e.message || "Could not send OTP");
+      setError(e.message || "Could not send OTP. Check your number and try again.");
     } finally {
       setLoading(false);
     }
@@ -66,12 +75,11 @@ export default function PhoneLogin() {
   const handleVerifyOTP = async () => {
     const code = otp.join("");
     if (code.length !== 6) return setError("Enter the 6-digit code");
+    if (!confirmationRef.current) return setError("Please request a new code");
     setError("");
     setLoading(true);
     try {
-      // TODO: Firebase OTP verification
-      // const credential = PhoneAuthProvider.credential(verificationId, code);
-      // await signInWithCredential(auth, credential);
+      await confirmationRef.current.confirm(code);
       setStep("name");
     } catch (e: any) {
       setError("Invalid code. Please try again.");
@@ -80,10 +88,27 @@ export default function PhoneLogin() {
     }
   };
 
-  const handleSaveName = () => {
+  const handleSaveName = async () => {
     if (!name.trim()) return setError("Please enter your name");
-    // TODO: Save name to Firestore user profile
-    router.replace("/(tabs)");
+    setLoading(true);
+    try {
+      const user = auth.currentUser;
+      if (user) {
+        // Update display name
+        await updateProfile(user, { displayName: name.trim() });
+        // Save to Firestore
+        await setDoc(doc(db, "users", user.uid), {
+          name: name.trim(),
+          phone: `+${callingCode}${phone}`,
+          createdAt: serverTimestamp(),
+        }, { merge: true });
+      }
+      router.replace("/(tabs)");
+    } catch (e: any) {
+      setError(e.message || "Could not save name");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -118,10 +143,10 @@ export default function PhoneLogin() {
                 We will send you a verification code.
               </Text>
 
-              {error ? <Text style={styles.error}>{error}</Text> : null}
-              {googleError ? <Text style={styles.error}>{googleError}</Text> : null}
+              {error || googleError ? (
+                <Text style={styles.error}>{error || googleError}</Text>
+              ) : null}
 
-              {/* Phone input row */}
               <View style={styles.phoneRow}>
                 <TouchableOpacity
                   style={styles.countryBtn}
@@ -159,14 +184,12 @@ export default function PhoneLogin() {
                 />
               </View>
 
-              {/* Or divider */}
               <View style={styles.orRow}>
                 <View style={styles.divider} />
                 <Text style={styles.orText}>Or</Text>
                 <View style={styles.divider} />
               </View>
 
-              {/* Google Sign In */}
               <TouchableOpacity
                 style={styles.googleBtn}
                 onPress={signInWithGoogle}
@@ -185,15 +208,13 @@ export default function PhoneLogin() {
                 )}
               </TouchableOpacity>
 
-              {/* Sign up link */}
               <View style={styles.signupRow}>
-                <Text style={styles.signupText}>Already have an account? </Text>
+                <Text style={styles.signupText}>Don't have an account? </Text>
                 <TouchableOpacity onPress={() => router.push("/(auth)/signup")}>
                   <Text style={styles.signupLink}>Sign Up</Text>
                 </TouchableOpacity>
               </View>
 
-              {/* Send code button */}
               <TouchableOpacity
                 style={[styles.actionBtn, loading && { opacity: 0.7 }]}
                 onPress={handleSendOTP}
@@ -221,7 +242,6 @@ export default function PhoneLogin() {
 
               {error ? <Text style={styles.error}>{error}</Text> : null}
 
-              {/* OTP boxes */}
               <View style={styles.otpRow}>
                 {otp.map((digit, index) => (
                   <TextInput
@@ -237,11 +257,8 @@ export default function PhoneLogin() {
                 ))}
               </View>
 
-              {/* Resend */}
               <View style={styles.resendRow}>
-                <Text style={styles.resendText}>
-                  Didn't receive a code?{" "}
-                </Text>
+                <Text style={styles.resendText}>Didn't receive a code? </Text>
                 <TouchableOpacity onPress={handleSendOTP}>
                   <Text style={styles.resendLink}>Resend</Text>
                 </TouchableOpacity>
@@ -282,10 +299,15 @@ export default function PhoneLogin() {
               />
 
               <TouchableOpacity
-                style={styles.actionBtn}
+                style={[styles.actionBtn, loading && { opacity: 0.7 }]}
                 onPress={handleSaveName}
+                disabled={loading}
               >
-                <Text style={styles.actionBtnText}>Continue</Text>
+                {loading ? (
+                  <ActivityIndicator color="#111" />
+                ) : (
+                  <Text style={styles.actionBtnText}>Continue</Text>
+                )}
               </TouchableOpacity>
             </View>
           )}
@@ -297,10 +319,7 @@ export default function PhoneLogin() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#111111" },
-  scroll: {
-    flexGrow: 1,
-    padding: 28,
-  },
+  scroll: { flexGrow: 1, padding: 28 },
   backBtn: {
     width: 40,
     height: 40,

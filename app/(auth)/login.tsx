@@ -24,6 +24,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  
 
   const handleLogin = async () => {
     setError("");
@@ -118,7 +119,10 @@ export default function Login() {
 
           {/* Social buttons */}
           <View style={styles.socialRow}>
-            <TouchableOpacity style={styles.socialBtn}>
+            <TouchableOpacity
+              style={styles.socialBtn}
+              onPress={() => router.push("../../hooks/useGoogleSignIn")}
+            >
               <Image
                 source={require("../../assets/icons/google.png")}
                 style={styles.socialIcon}
