@@ -15,16 +15,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Eye, EyeOff } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../contexts/AuthContext";
+import { useGoogleSignIn } from "../../hooks/useGoogleSignIn";
 
 export default function Login() {
   const { login } = useAuth();
+  const { signInWithGoogle, loading: googleLoading, error: googleError } = useGoogleSignIn();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  
 
   const handleLogin = async () => {
     setError("");
@@ -59,7 +60,9 @@ export default function Login() {
 
           {/* Form */}
           <View style={styles.form}>
-            {error ? <Text style={styles.error}>{error}</Text> : null}
+            {error || googleError ? (
+              <Text style={styles.error}>{error || googleError}</Text>
+            ) : null}
 
             <TextInput
               style={styles.input}
@@ -81,11 +84,10 @@ export default function Login() {
                 secureTextEntry={!showPassword}
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                {showPassword ? (
-                  <Eye color="#555" size={20} />
-                ) : (
-                  <EyeOff color="#555" size={20} />
-                )}
+                {showPassword
+                  ? <Eye color="#555" size={20} />
+                  : <EyeOff color="#555" size={20} />
+                }
               </TouchableOpacity>
             </View>
 
@@ -103,11 +105,10 @@ export default function Login() {
             onPress={handleLogin}
             disabled={loading}
           >
-            {loading ? (
-              <ActivityIndicator color="#111" />
-            ) : (
-              <Text style={styles.signInBtnText}>Sign In</Text>
-            )}
+            {loading
+              ? <ActivityIndicator color="#111" />
+              : <Text style={styles.signInBtnText}>Sign In</Text>
+            }
           </TouchableOpacity>
 
           {/* Or continue with */}
@@ -119,15 +120,22 @@ export default function Login() {
 
           {/* Social buttons */}
           <View style={styles.socialRow}>
+            {/* Google */}
             <TouchableOpacity
               style={styles.socialBtn}
-              onPress={() => router.push("../../hooks/useGoogleSignIn")}
+              onPress={signInWithGoogle}
+              disabled={googleLoading}
             >
-              <Image
-                source={require("../../assets/icons/google.png")}
-                style={styles.socialIcon}
-              />
+              {googleLoading
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Image
+                    source={require("../../assets/icons/google.png")}
+                    style={styles.socialIcon}
+                  />
+              }
             </TouchableOpacity>
+
+            {/* Phone */}
             <TouchableOpacity
               style={styles.socialBtn}
               onPress={() => router.push("/(auth)/phoneLogin")}
@@ -157,10 +165,7 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     justifyContent: "center",
   },
-  header: {
-    marginBottom: 40,
-    marginTop: 20,
-  },
+  header: { marginBottom: 40, marginTop: 20 },
   title: {
     color: "#ffffff",
     fontSize: 32,

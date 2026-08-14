@@ -185,7 +185,7 @@ export default function PhoneLogin() {
               </View>
 
               <View style={styles.orRow}>
-                <View style={styles.divider} />
+                <View style={styles.divider} />git
                 <Text style={styles.orText}>Or</Text>
                 <View style={styles.divider} />
               </View>
