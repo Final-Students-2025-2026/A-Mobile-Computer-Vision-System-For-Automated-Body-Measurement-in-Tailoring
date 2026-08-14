@@ -29,7 +29,7 @@ import { db } from "../../config/firebase";
 
 type Step = "phone" | "otp" | "name";
 
-export default function PhoneLogin() {
+export default async function PhoneLogin() {
   const router = useRouter();
   const { signInWithGoogle, loading: googleLoading, error: googleError } = useGoogleSignIn();
 
@@ -43,6 +43,10 @@ export default function PhoneLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const confirmationRef = useRef<ConfirmationResult | null>(null);
+  // Remove leading 0 from phone number
+const cleanPhone = phone.startsWith("0") ? phone.slice(1) : phone;
+const fullPhone = `+${callingCode}${cleanPhone}`;
+const confirmation = await signInWithPhoneNumber(auth, fullPhone);
 
   const onSelectCountry = (country: Country) => {
     setCountryCode(country.cca2);
