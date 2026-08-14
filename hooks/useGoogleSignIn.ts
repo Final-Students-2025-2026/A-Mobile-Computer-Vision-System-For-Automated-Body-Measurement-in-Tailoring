@@ -19,6 +19,7 @@ export function useGoogleSignIn() {
     setLoading(true);
     try {
       await GoogleSignin.hasPlayServices();
+      await GoogleSignin.signOut();
       await GoogleSignin.signIn();
       const { idToken } = await GoogleSignin.getTokens();
 
