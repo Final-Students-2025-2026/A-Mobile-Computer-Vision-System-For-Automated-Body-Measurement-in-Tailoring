@@ -14,18 +14,23 @@ const createLoginStyles = (theme) =>
   authScrollContent: {
     flexGrow: 1,
   },
-  wrapper: {
-    flex: 1,
-    justifyContent: "center",
-
-    padding: 20,
-  },
-  wrappersmall: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-  },
+  container: {
+  flex: 1,
+  backgroundColor: "#0d0d0d",
+},
+wrappersmall: {
+  flex: 1,
+  justifyContent: "flex-end",
+  alignItems: "center",
+  padding: 24,
+  paddingBottom: 40,
+},
+logoBox: {
+  width: 80,
+  height: 80,
+  marginBottom: 40,
+  borderRadius: 20,
+},
 
   // Logo
   logoBox: {
@@ -36,21 +41,13 @@ const createLoginStyles = (theme) =>
   },
 
   // Card
-  card: {
-    backgroundColor: theme?.surface || "#0B0B0B",
-    borderRadius: 24,
-    padding: 20,
-    width: "100%",
-    maxWidth: 420,
-
-    // glow effect
-    borderWidth: 1,
-    borderColor: theme?.primary || PRIMARY,
-    shadowColor: theme?.primary || PRIMARY,
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 10,
-  },
+ card: {
+  backgroundColor: theme?.surface || "#0B0B0B",
+  borderRadius: 24,
+  padding: 20,
+  width: "100%",
+  maxWidth: 420,
+},
 
   input: {
     backgroundColor: theme?.input || "#2A2A2A",

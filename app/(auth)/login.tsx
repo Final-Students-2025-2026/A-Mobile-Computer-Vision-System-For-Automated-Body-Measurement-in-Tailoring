@@ -4,28 +4,22 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  StyleSheet,
   Image,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
-import { createLoginStyles } from "../../styles/login.styles";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Eye, EyeOff } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../contexts/AuthContext";
-//import { useGoogleSignIn } from "../../hooks/useGoogleSignIn";
-import { useAppTheme } from "../../contexts/ThemeContext";
+import { useGoogleSignIn } from "../../hooks/useGoogleSignIn";
 
 export default function Login() {
   const { login } = useAuth();
-  const { theme } = useAppTheme();
-  const styles = createLoginStyles(theme);
-  // const {
-  //   error: googleError,
-  //   loading: googleLoading,
-  //   signInWithGoogle,
-  // } = useGoogleSignIn();
+  const { signInWithGoogle, loading: googleLoading, error: googleError } = useGoogleSignIn();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,25 +28,14 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    const trimmedEmail = email.trim();
-
     setError("");
-
-    if (!trimmedEmail) {
-      setError("Email required.");
-      return;
-    }
-
-    if (!password) {
-      setError("Password required.");
-      return;
-    }
-
+    if (!email.trim()) return setError("Email is required");
+    if (!password) return setError("Password is required");
     try {
       setLoading(true);
-      await login(trimmedEmail, password);
+      await login(email.trim(), password);
     } catch (e: any) {
-      setError(e.message);
+      setError("Invalid email or password");
     } finally {
       setLoading(false);
     }
@@ -61,102 +44,228 @@ export default function Login() {
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
-        style={styles.keyboardAvoidingView}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
       >
         <ScrollView
-          contentContainerStyle={styles.authScrollContent}
+          contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.wrappersmall}>
-            <Image
-              source={require("../../assets/images/measure-ai logo.png")}
-              resizeMode="contain"
-              style={styles.logoBox}
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Welcome Back</Text>
+            <Text style={styles.subtitle}>Please sign in to your account</Text>
+          </View>
+
+          {/* Form */}
+          <View style={styles.form}>
+            {error || googleError ? (
+              <Text style={styles.error}>{error || googleError}</Text>
+            ) : null}
+
+            <TextInput
+              style={styles.input}
+              placeholder="Email or Username"
+              placeholderTextColor="#555"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
             />
 
-            <View style={styles.card}>
+            <View style={styles.passwordWrapper}>
               <TextInput
-                placeholder="email"
-                placeholderTextColor={theme.muted}
-                style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="email-address"
+                style={styles.passwordInput}
+                placeholder="Password"
+                placeholderTextColor="#555"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
               />
-
-              <View style={styles.passwordWrapper}>
-                <TextInput
-                  placeholder="password"
-                  placeholderTextColor={theme.muted}
-                  style={styles.passwordInput}
-                  secureTextEntry={!showPassword}
-                  value={password}
-                  onChangeText={setPassword}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? (
-                    <Eye color={theme.muted} />
-                  ) : (
-                    <EyeOff color={theme.muted} />
-                  )}
-                </TouchableOpacity>
-              </View>
-
-              <TouchableOpacity
-                style={styles.button}
-                onPress={handleLogin}
-                disabled={loading}
-              >
-                <Text style={styles.buttonText}>
-                  {loading ? "Signing In..." : "Sign In"}
-                </Text>
+              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                {showPassword
+                  ? <Eye color="#555" size={20} />
+                  : <EyeOff color="#555" size={20} />
+                }
               </TouchableOpacity>
-
-              {/* {error || googleError ? (
-                <Text style={styles.error}>{error || googleError}</Text>
-              ) : null} */}
-
-              <TouchableOpacity onPress={() => router.push("/forgotPassword")}>
-                <Text style={styles.forgot}>forgot password?</Text>
-              </TouchableOpacity>
-
-              {/* <TouchableOpacity
-                style={styles.googleBtn}
-                onPress={signInWithGoogle}
-                disabled={googleLoading}
-              >
-                <Text style={styles.googleText}>
-                  {googleLoading
-                    ? "Connecting to Google..."
-                    : "Continue with Google"}
-                </Text> */}
-              {/* <Image
-                  source={require("../../assets/icons/google.png")}
-                  style={styles.googleIcon}
-                />
-              </TouchableOpacity> */}
-
-              <Text style={styles.privacy}>
-                By continuing, you agree to our Terms & Privacy Policy
-              </Text>
-
-              <View style={styles.row}>
-                <Text style={styles.muted}>{"Don't have an account? "}</Text>
-                <TouchableOpacity onPress={() => router.push("/signup")}>
-                  <Text style={styles.link}>Sign up</Text>
-                </TouchableOpacity>
-              </View>
             </View>
+
+            <TouchableOpacity
+              onPress={() => router.push("/(auth)/forgotPassword")}
+              style={styles.forgotBtn}
+            >
+              <Text style={styles.forgotText}>Forgot password?</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Sign In Button */}
+          <TouchableOpacity
+            style={[styles.signInBtn, loading && { opacity: 0.7 }]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading
+              ? <ActivityIndicator color="#111" />
+              : <Text style={styles.signInBtnText}>Sign In</Text>
+            }
+          </TouchableOpacity>
+
+          {/* Or continue with */}
+          <View style={styles.orRow}>
+            <View style={styles.divider} />
+            <Text style={styles.orText}>Or continue with</Text>
+            <View style={styles.divider} />
+          </View>
+
+          {/* Social buttons */}
+          <View style={styles.socialRow}>
+            {/* Google */}
+            <TouchableOpacity
+              style={styles.socialBtn}
+              onPress={signInWithGoogle}
+              disabled={googleLoading}
+            >
+              {googleLoading
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Image
+                    source={require("../../assets/icons/google.png")}
+                    style={styles.socialIcon}
+                  />
+              }
+            </TouchableOpacity>
+
+            {/* Phone */}
+            <TouchableOpacity
+              style={styles.socialBtn}
+              onPress={() => router.push("/(auth)/phoneLogin")}
+            >
+              <Text style={styles.phoneIcon}>📱</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Sign up */}
+          <View style={styles.signupRow}>
+            <Text style={styles.signupText}>Don't have an account? </Text>
+            <TouchableOpacity onPress={() => router.push("/(auth)/signup")}>
+              <Text style={styles.signupLink}>Sign Up</Text>
+            </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: "#111111" },
+  scroll: {
+    flexGrow: 1,
+    paddingHorizontal: 28,
+    paddingBottom: 40,
+    justifyContent: "center",
+  },
+  header: { marginBottom: 40, marginTop: 20 },
+  title: {
+    color: "#ffffff",
+    fontSize: 32,
+    fontFamily: "PlusJakartaSans_800ExtraBold",
+    marginBottom: 8,
+  },
+  subtitle: {
+    color: "#666",
+    fontSize: 15,
+    fontFamily: "PlusJakartaSans_400Regular",
+  },
+  form: { gap: 14, marginBottom: 24 },
+  error: {
+    color: "#ff6b6b",
+    fontSize: 13,
+    textAlign: "center",
+    fontFamily: "PlusJakartaSans_400Regular",
+  },
+  input: {
+    backgroundColor: "#1e1e1e",
+    borderRadius: 14,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    color: "#fff",
+    fontSize: 15,
+    fontFamily: "PlusJakartaSans_400Regular",
+  },
+  passwordWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1e1e1e",
+    borderRadius: 14,
+    paddingHorizontal: 20,
+  },
+  passwordInput: {
+    flex: 1,
+    color: "#fff",
+    paddingVertical: 18,
+    fontSize: 15,
+    fontFamily: "PlusJakartaSans_400Regular",
+  },
+  forgotBtn: { alignSelf: "flex-end" },
+  forgotText: {
+    color: "#b8f54a",
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+  },
+  signInBtn: {
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    paddingVertical: 18,
+    alignItems: "center",
+    marginBottom: 28,
+  },
+  signInBtnText: {
+    color: "#111",
+    fontSize: 16,
+    fontFamily: "PlusJakartaSans_700Bold",
+  },
+  orRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 24,
+  },
+  divider: { flex: 1, height: 1, backgroundColor: "#222" },
+  orText: {
+    color: "#555",
+    fontSize: 13,
+    fontFamily: "PlusJakartaSans_400Regular",
+  },
+  socialRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 16,
+    marginBottom: 32,
+  },
+  socialBtn: {
+    width: 60,
+    height: 60,
+    borderRadius: 16,
+    backgroundColor: "#1e1e1e",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  socialIcon: { width: 24, height: 24 },
+  phoneIcon: { fontSize: 24 },
+  signupRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  signupText: {
+    color: "#555",
+    fontSize: 14,
+    fontFamily: "PlusJakartaSans_400Regular",
+  },
+  signupLink: {
+    color: "#b8f54a",
+    fontFamily: "PlusJakartaSans_700Bold",
+    fontSize: 14,
+  },
+});
