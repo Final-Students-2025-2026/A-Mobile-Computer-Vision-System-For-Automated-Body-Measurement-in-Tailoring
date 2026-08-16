@@ -43,6 +43,13 @@ export const measurementParts = [
     baselineCm: 62,
   },
   {
+    id: "shortSleeve",
+    label: "Short sleeve",
+    category: "Arms",
+    guide: "Keep your full body visible, facing the camera.",
+    baselineCm: 24,
+  },
+  {
     id: "bicep",
     label: "Bicep",
     category: "Arms",
@@ -163,6 +170,8 @@ export type BodyScanResult = {
 export type BodyScanSessionInput = {
   knownHeightCm: number;
   knownWeightKg?: number;
+  knownAge?: number;
+  knownGender?: number;
   front: CameraFrame;
   left?: CameraFrame;
   right?: CameraFrame;
@@ -266,6 +275,7 @@ function estimateBodyScanFromThreeViews(
     if (
       reading.measurementType !== "shoulder" &&
       reading.measurementType !== "sleeve" &&
+      reading.measurementType !== "shortSleeve" &&
       reading.measurementType !== "inseam" &&
       reading.measurementType !== "outseam"
     ) {
@@ -403,7 +413,11 @@ export async function analyzeBodyScanSession(
     scan,
     input.knownHeightCm,
     input.knownWeightKg,
+    input.knownAge,
+    input.knownGender,
   );
+
+  normalizeBodyProportions(scan, input.knownHeightCm, input.knownWeightKg);
 
   // Return the validated scan
   return scan;
@@ -414,46 +428,81 @@ function calibrateFromHeight(
   pose: MediaPipePoseResult,
 ): ScanCalibration {
   const dimensions = imageDimensions(frame, pose);
-  if (!dimensions)
+
+  if (!dimensions) {
     throw new MeasurementDetectionError(
       "Image dimensions are unavailable; the scan cannot be calibrated safely.",
     );
-  const head =
-    midpoint(pose.landmarks[2], pose.landmarks[5]) ?? pose.landmarks[0];
-  const ankles = midpoint(pose.landmarks[27], pose.landmarks[28]);
+  }
+
+  const landmarks = pose.landmarks;
+
+  // Important MediaPipe landmarks
+  const nose = landmarks[0];
+  const leftEar = landmarks[7];
+  const rightEar = landmarks[8];
+
+  const leftAnkle = landmarks[27];
+  const rightAnkle = landmarks[28];
+
+  if (!leftAnkle || !rightAnkle) {
+    throw new MeasurementDetectionError(
+      "Both ankles must be visible. Step back and keep your full body in frame.",
+    );
+  }
+
+  const ankle = midpoint(leftAnkle, rightAnkle);
+
+  if (!ankle) {
+    throw new MeasurementDetectionError("Could not determine ankle position.");
+  }
+
+  /*
+   * MediaPipe's nose landmark is below the top of the head.
+   * Estimate the top of the head using the ears/nose geometry.
+   */
+  const earPoints = [leftEar, rightEar].filter(Boolean) as PoseLandmark[];
+
+  let headY = nose?.y ?? 0;
+
+  if (earPoints.length === 2) {
+    const earY = average(earPoints.map((p) => p.y).filter(isNumber));
+
+    // Approximate distance from nose/ear region to top of head.
+    headY = Math.max(0, earY - Math.abs(earY - (nose?.y ?? earY)) * 1.5);
+  }
+
+  /*
+   * Use the highest reliable landmark around the head.
+   */
+  const head = {
+    x: nose?.x ?? 0.5,
+    y: headY,
+  } as PoseLandmark;
+
   const heightPx = pixelDistance(
     head,
-    ankles,
+    ankle,
     dimensions.width,
     dimensions.height,
   );
-  const visibility = average(
-    [
-      head?.visibility,
-      pose.landmarks[27]?.visibility,
-      pose.landmarks[28]?.visibility,
-    ].filter(isNumber),
-  );
-  //console log for debuigging
-  console.log({
-    imageHeight: dimensions.height,
-    bodyHeight: heightPx,
-    ratio: heightPx / dimensions.height,
-    visibility,
-  });
-  const ratio = heightPx / dimensions.height;
 
-  if (ratio < 0.18) {
+  const visibilityValues = [
+    nose?.visibility,
+    leftEar?.visibility,
+    rightEar?.visibility,
+    leftAnkle.visibility,
+    rightAnkle.visibility,
+  ].filter(isNumber);
+
+  const visibility = average(visibilityValues);
+
+  if (heightPx < dimensions.height * 0.35 || visibility < 0.45) {
     throw new MeasurementDetectionError(
-      "Move farther back so your full body fits in the frame.",
+      "Your full body must be clearly visible from head to ankles for calibration. Step back and try again.",
     );
   }
 
-  if (visibility < 0.2) {
-    throw new MeasurementDetectionError(
-      "Stand in better lighting and keep your ankles visible.",
-    );
-  }
   return {
     knownHeightCm,
     pixelsPerCm: heightPx / knownHeightCm,
@@ -523,7 +572,7 @@ function estimateBodyScanFromProfile(
     {} as Record<MeasurementType, MeasurementResult>,
   );
 
-  return {
+  const scan: BodyScanResult = {
     readings,
     confidence,
     source: "calibration",
@@ -537,6 +586,10 @@ function estimateBodyScanFromProfile(
       method: "user-height",
     },
   };
+
+  normalizeBodyProportions(scan, input.knownHeightCm, input.knownWeightKg);
+
+  return scan;
 }
 
 function estimateBodyScanFromPose(
@@ -695,19 +748,24 @@ function frontWidths(values: {
 }): Record<MeasurementType, number> {
   const chestWidth = values.shoulderWidth * 0.94 + values.torsoHeight * 0.08;
 
-  const waistWidth = values.hipWidth * 0.72 + values.shoulderWidth * 0.18;
-
-  const hipWidth = values.hipWidth * 1.04;
+  // Linear interpolation along the torso axis
+  const torsoTaperFactor = 0.38; // Places waist ~38% up from hips toward shoulders
+  const waistWidth = Math.min(
+    values.hipWidth * 0.86,
+    values.hipWidth +
+      (values.shoulderWidth - values.hipWidth) * torsoTaperFactor,
+  );
+  const hipWidth = values.hipWidth * 1.08;
 
   const neckWidth = values.shoulderWidth * 0.38;
 
-  const bicepWidth = values.armLength * 0.115;
+  const bicepWidth = values.shoulderWidth * 0.13 + values.armLength * 0.035;
 
   const wristWidth = values.armLength * 0.055;
 
   const thighWidth = values.hipWidth * 0.58;
 
-  const calfWidth = values.lowerLeg * 0.3;
+  const calfWidth = values.hipWidth * 0.14 + values.lowerLeg * 0.15;
 
   return {
     neck: neckWidth,
@@ -722,6 +780,8 @@ function frontWidths(values: {
 
     sleeve: values.armLength,
 
+    shortSleeve: values.armLength * 0.38,
+
     bicep: bicepWidth,
 
     wrist: wristWidth,
@@ -732,7 +792,7 @@ function frontWidths(values: {
 
     calf: calfWidth,
 
-    outseam: values.torsoHeight + values.legLength,
+    outseam: values.legLength,
   };
 }
 
@@ -742,14 +802,15 @@ function depthRatio(type: MeasurementType) {
       neck: 0.44,
       shoulder: 0.36,
       chest: 0.74,
-      waist: 0.67,
-      hip: 0.8,
+      waist: 0.58,
+      hip: 0.82,
       sleeve: 0.31,
-      bicep: 0.42,
+      shortSleeve: 0.24,
+      bicep: 0.38,
       wrist: 0.28,
       inseam: 0.42,
       thigh: 0.58,
-      calf: 0.46,
+      calf: 0.42,
       outseam: 0.44,
     } as Record<MeasurementType, number>
   )[type];
@@ -773,6 +834,7 @@ function bodyMassDepthFactor(
       waist: 0.28,
       hip: 0.22,
       sleeve: 0.04,
+      shortSleeve: 0.03,
       bicep: 0.16,
       wrist: 0.04,
       inseam: 0.02,
@@ -784,7 +846,9 @@ function bodyMassDepthFactor(
   return clamp(1 + ((bmi - 22) / 22) * sensitivity, 0.86, 1.22);
 }
 function isCircumference(type: MeasurementType) {
-  return !["shoulder", "sleeve", "inseam", "outseam"].includes(type);
+  return !["shoulder", "sleeve", "shortSleeve", "inseam", "outseam"].includes(
+    type,
+  );
 }
 function linearEstimate(
   type: MeasurementType,
@@ -881,10 +945,16 @@ async function validateBodyMeasurements(
   scan: BodyScanResult,
   height: number,
   weight?: number,
+  age?: number,
+  gender?: number,
 ) {
   const bmi = weight ? weight / Math.pow(height / 100, 2) : 22;
 
-  for (const part of measurementParts) {
+  const validationParts = measurementParts.filter(
+    (part) => part.id !== "shortSleeve",
+  );
+
+  const validationPromises = validationParts.map(async (part) => {
     const reading = scan.readings[part.id];
 
     try {
@@ -895,9 +965,9 @@ async function validateBodyMeasurements(
 
         bmi,
 
-        age: 25, // TODO: Replace with the user's age
+        age: isPlausibleAge(age) ? age : 25,
 
-        gender: 1, // TODO: Replace with the user's gender
+        gender: isPlausibleGender(gender) ? gender : 1,
 
         body_part: part.id,
 
@@ -914,5 +984,90 @@ async function validateBodyMeasurements(
     } catch (err) {
       console.warn("Validation failed", err);
     }
+  });
+
+  await Promise.all(validationPromises);
+}
+
+function normalizeBodyProportions(
+  scan: BodyScanResult,
+  heightCm: number,
+  weightKg?: number,
+) {
+  const expected = expectedCircumferences(heightCm, weightKg);
+  const waist = scan.readings.waist;
+  const hip = scan.readings.hip;
+
+  if (hip) {
+    hip.valueCm = blendTowardExpected(hip.valueCm, expected.hip, 0.45);
   }
+
+  if (waist) {
+    waist.valueCm = blendTowardExpected(waist.valueCm, expected.waist, 0.5);
+  }
+
+  if (waist && hip && waist.valueCm > hip.valueCm * 0.94) {
+    waist.valueCm = Math.round(hip.valueCm * 0.88);
+    waist.confidence = Math.min(waist.confidence, hip.confidence, 0.88);
+  }
+
+  const bicep = scan.readings.bicep;
+  if (bicep) {
+    bicep.valueCm = blendTowardExpected(bicep.valueCm, expected.bicep, 0.55);
+    bicep.valueCm = clamp(
+      bicep.valueCm,
+      Math.round(expected.bicep * 0.82),
+      Math.round(expected.bicep * 1.22),
+    );
+  }
+
+  const calf = scan.readings.calf;
+  const thigh = scan.readings.thigh;
+  if (calf) {
+    calf.valueCm = blendTowardExpected(calf.valueCm, expected.calf, 0.55);
+  }
+
+  if (calf && thigh) {
+    calf.valueCm = clamp(
+      calf.valueCm,
+      Math.round(thigh.valueCm * 0.48),
+      Math.round(thigh.valueCm * 0.72),
+    );
+  }
+}
+
+function expectedCircumferences(heightCm: number, weightKg?: number) {
+  const heightFactor = clamp(heightCm / 170, 0.78, 1.28);
+  const weightFactor = isPlausibleWeight(weightKg)
+    ? clamp(weightKg / 70, 0.72, 1.55)
+    : heightFactor;
+  const bodyFactor = heightFactor * 0.35 + weightFactor * 0.65;
+
+  return {
+    waist: 78 * bodyFactor,
+    hip: 96 * (heightFactor * 0.25 + weightFactor * 0.75),
+    bicep: 32 * (heightFactor * 0.2 + weightFactor * 0.8),
+    calf: 37 * (heightFactor * 0.35 + weightFactor * 0.65),
+  };
+}
+
+function blendTowardExpected(
+  measuredCm: number,
+  expectedCm: number,
+  weight: number,
+) {
+  return Math.round(measuredCm * (1 - weight) + expectedCm * weight);
+}
+
+function isPlausibleAge(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= 5 &&
+    value <= 120
+  );
+}
+
+function isPlausibleGender(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
 }

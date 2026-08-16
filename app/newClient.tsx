@@ -27,6 +27,8 @@ export default function NewClient() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [height, setHeight] = useState("");
+  const [weight, setWeight] = useState("");
   const [photoUri, setPhotoUri] = useState("");
   const [photoBase64, setPhotoBase64] = useState("");
   const [photoMimeType, setPhotoMimeType] = useState("image/jpeg");
@@ -76,6 +78,17 @@ export default function NewClient() {
   const handleSave = async () => {
     if (!name.trim() || !user) return;
 
+    const heightCm = Number(height);
+    const weightKg = Number(weight);
+    if (!heightCm || heightCm < 80 || heightCm > 260) {
+      Alert.alert("Height needed", "Enter a valid height in cm.");
+      return;
+    }
+    if (!weightKg || weightKg < 25 || weightKg > 260) {
+      Alert.alert("Weight needed", "Enter a valid weight in kg.");
+      return;
+    }
+
     try {
       setSaving(true);
       const photoURL = getPhotoDataUrl();
@@ -86,6 +99,8 @@ export default function NewClient() {
         email: email.trim(),
         phone: phone.trim(),
         photoURL,
+        height: heightCm,
+        weight: weightKg,
         measurements: 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -158,12 +173,40 @@ export default function NewClient() {
             onChangeText={setPhone}
             keyboardType="phone-pad"
           />
+
+          <View style={styles.rowSplit}>
+            <View style={styles.rowSplitItem}>
+              <Text style={styles.label}>Height (cm)</Text>
+              <TextInput
+                placeholder="e.g. 165"
+                placeholderTextColor={theme.muted}
+                style={styles.input}
+                value={height}
+                onChangeText={setHeight}
+                keyboardType="number-pad"
+              />
+            </View>
+            <View style={styles.rowSplitItem}>
+              <Text style={styles.label}>Weight (kg)</Text>
+              <TextInput
+                placeholder="e.g. 60"
+                placeholderTextColor={theme.muted}
+                style={styles.input}
+                value={weight}
+                onChangeText={setWeight}
+                keyboardType="number-pad"
+              />
+            </View>
+          </View>
         </View>
 
         {/* Save Button */}
         <TouchableOpacity
-          style={[styles.saveBtn, (!name || saving) && styles.saveBtnDisabled]}
-          disabled={!name || saving}
+          style={[
+            styles.saveBtn,
+            (!name || !height || !weight || saving) && styles.saveBtnDisabled,
+          ]}
+          disabled={!name || !height || !weight || saving}
           onPress={handleSave}
         >
           {saving ? (
@@ -206,6 +249,8 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
     avatarText: { color: theme.primary, fontSize: 28, fontWeight: "300" },
     avatarHint: { color: theme.muted, fontSize: 13 },
     form: { marginBottom: 30 },
+    rowSplit: { flexDirection: "row", gap: 12 },
+    rowSplitItem: { flex: 1 },
     label: {
       color: theme.subtle,
       fontSize: 13,
