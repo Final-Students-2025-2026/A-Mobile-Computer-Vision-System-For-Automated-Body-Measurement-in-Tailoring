@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
+import {
+  GoogleSignin,
+  statusCodes,
+} from "@react-native-google-signin/google-signin";
 import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
 import { auth } from "../config/firebase";
 
@@ -13,10 +16,10 @@ GoogleSignin.configure({
 export function useGoogleSignIn() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
   const signInWithGoogle = async () => {
     setError("");
     setLoading(true);
+    console.log("WEB CLIENT ID:", process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID);
     try {
       await GoogleSignin.hasPlayServices();
       await GoogleSignin.signOut();
