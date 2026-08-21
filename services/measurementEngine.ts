@@ -163,6 +163,8 @@ export type BodyScanResult = {
 export type BodyScanSessionInput = {
   knownHeightCm: number;
   knownWeightKg?: number;
+  knownAge?: number | null;
+  knownGender?: number | null;
   front: CameraFrame;
   left?: CameraFrame;
   right?: CameraFrame;
@@ -403,6 +405,8 @@ export async function analyzeBodyScanSession(
     scan,
     input.knownHeightCm,
     input.knownWeightKg,
+    input.knownAge,
+    input.knownGender,
   );
 
   // Return the validated scan
@@ -881,6 +885,8 @@ async function validateBodyMeasurements(
   scan: BodyScanResult,
   height: number,
   weight?: number,
+  age?: number | null,
+  gender?: number | null,
 ) {
   const bmi = weight ? weight / Math.pow(height / 100, 2) : 22;
 
@@ -895,9 +901,9 @@ async function validateBodyMeasurements(
 
         bmi,
 
-        age: 25, // TODO: Replace with the user's age
+        age: age ?? 25,
 
-        gender: 1, // TODO: Replace with the user's gender
+        gender: gender ?? 1,
 
         body_part: part.id,
 

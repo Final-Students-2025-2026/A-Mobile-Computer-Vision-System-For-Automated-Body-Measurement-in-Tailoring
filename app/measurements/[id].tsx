@@ -19,6 +19,7 @@ import {
 } from "lucide-react-native";
 import {
   doc,
+  getDoc,
   addDoc,
   updateDoc,
   collection,
@@ -27,7 +28,6 @@ import {
 import { db } from "../../config/firebase";
 import { useAuth } from "../../contexts/AuthContext";
 import { useAppTheme } from "../../contexts/ThemeContext";
-import { useUserProfile } from "../../hooks/useUserProfile";
 import {
   analyzeBodyScanSession,
   CameraFacing,
@@ -41,7 +41,11 @@ type ScanView = "front" | "side";
 
 type Measurements = Partial<Record<MeasurementType, number>> & {
   height?: number;
+  weight?: number;
 };
+
+const formatMeasurement = (value?: number) =>
+  typeof value === "number" ? `${value} cm / ${(value / 2.54).toFixed(1)} in` : "--";
 
 export default function TakeMeasurements() {
   const router = useRouter();
@@ -50,7 +54,6 @@ export default function TakeMeasurements() {
   const { id } = useLocalSearchParams();
   const clientId = Array.isArray(id) ? id[0] : id;
   const { user } = useAuth();
-  const { profile, loading: profileLoading } = useUserProfile();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const [step, setStep] = useState<Step>("instructions");
@@ -62,11 +65,62 @@ export default function TakeMeasurements() {
   const [saving, setSaving] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [client, setClient] = useState<any>(null);
+  const [clientLoading, setClientLoading] = useState(true);
+  const [processingProgress, setProcessingProgress] = useState(0);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const hasBodyInfo =
-    Boolean(profile?.height && profile.height >= 80 && profile.height <= 260) &&
-    Boolean(profile?.weight && profile.weight >= 25 && profile.weight <= 260);
+    Boolean(client?.height && client.height >= 80 && client.height <= 260) &&
+    Boolean(client?.weight && client.weight >= 25 && client.weight <= 260);
+
+  useEffect(() => {
+    if (!clientId || clientId === "new") {
+      setClientLoading(false);
+      return;
+    }
+
+    const fetchClient = async () => {
+      try {
+        const snapshot = await getDoc(doc(db, "clients", clientId));
+        setClient(snapshot.exists() ? { id: snapshot.id, ...snapshot.data() } : null);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setClientLoading(false);
+      }
+    };
+
+    fetchClient();
+  }, [clientId]);
+
+  useEffect(() => {
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+      if (progressRef.current) clearInterval(progressRef.current);
+    };
+  }, []);
+
+  const stopProgress = () => {
+    if (progressRef.current) {
+      clearInterval(progressRef.current);
+      progressRef.current = null;
+    }
+  };
+
+  const startProcessingProgress = () => {
+    stopProgress();
+    setProcessingProgress(1);
+
+    progressRef.current = setInterval(() => {
+      setProcessingProgress((current) => {
+        if (current >= 94) return current;
+        const increment = current < 35 ? 4 : current < 70 ? 2 : 1;
+        return Math.min(current + increment, 94);
+      });
+    }, 260);
+  };
 
   const ensurePermission = async () => {
     if (permission?.granted) return true;
@@ -75,13 +129,13 @@ export default function TakeMeasurements() {
   };
 
   const startGuidedScan = async () => {
-    if (capturing || profileLoading) return;
+    if (capturing || clientLoading) return;
 
-    if (!hasBodyInfo || !profile?.height || !profile?.weight) {
+    if (!hasBodyInfo || !client?.height || !client?.weight) {
       Alert.alert(
         "Body info needed",
-        "Please add your height and weight first. This helps calibrate the scan.",
-        [{ text: "OK", onPress: () => router.push("/bodyInfo") }],
+        "Please add this client's height and weight first. This helps calibrate the scan.",
+        [{ text: "OK", onPress: () => router.push(`/client/${clientId}` as any) }],
       );
       return;
     }
@@ -111,7 +165,7 @@ export default function TakeMeasurements() {
   };
 
   const captureFullBodyScan = async () => {
-    if (capturing || profileLoading || !profile?.height || !profile?.weight) {
+    if (capturing || clientLoading || !client?.height || !client?.weight) {
       return;
     }
 
@@ -159,9 +213,12 @@ export default function TakeMeasurements() {
       }
 
       setStep("processing");
+      startProcessingProgress();
       const scan = await analyzeBodyScanSession({
-        knownHeightCm: profile.height,
-        knownWeightKg: profile.weight,
+        knownHeightCm: client.height,
+        knownWeightKg: client.weight,
+        knownAge: client.age,
+        knownGender: client.gender,
         front: frontFrame,
         right: frame,
         requirePoseDetection: true,
@@ -172,11 +229,16 @@ export default function TakeMeasurements() {
         return result;
       }, {} as Measurements);
 
-      nextMeasurements.height = Math.round(profile.height);
+      nextMeasurements.height = Math.round(client.height);
+      nextMeasurements.weight = Math.round(client.weight);
       setMeasurements(nextMeasurements);
       setConfidence(scan.confidence);
+      stopProgress();
+      setProcessingProgress(100);
       setStep("results");
     } catch (e: any) {
+      stopProgress();
+      setProcessingProgress(0);
       Alert.alert(
         "Try again",
         e.message ||
@@ -298,6 +360,15 @@ export default function TakeMeasurements() {
         <StatusBar style="light" />
         <ActivityIndicator size="large" color="#fff" />
         <Text style={styles.processingTitle}>Reading full body scan</Text>
+        <Text style={styles.processingPercent}>{processingProgress}%</Text>
+        <View style={styles.progressTrack}>
+          <View
+            style={[
+              styles.progressFill,
+              { width: `${processingProgress}%` },
+            ]}
+          />
+        </View>
         <Text style={styles.processingSubtitle}>
           Using your height and weight to calculate body parts.
         </Text>
@@ -339,7 +410,7 @@ export default function TakeMeasurements() {
             <View key={part.id} style={styles.resultCard}>
               <Text style={styles.resultLabel}>{part.label}</Text>
               <Text style={styles.resultValue}>
-                {measurements[part.id] ?? "--"} cm
+                {formatMeasurement(measurements[part.id])}
               </Text>
             </View>
           ))}
@@ -366,7 +437,8 @@ export default function TakeMeasurements() {
   return (
     <View style={styles.cameraScreen}>
       <StatusBar style="light" />
-      <CameraView ref={cameraRef} style={styles.camera} facing={cameraFacing}>
+      <CameraView ref={cameraRef} style={styles.camera} facing={cameraFacing} />
+      <View style={styles.cameraOverlay} pointerEvents="box-none">
         <View style={styles.topBar}>
           <TouchableOpacity
             style={styles.cameraIconBtn}
@@ -384,6 +456,7 @@ export default function TakeMeasurements() {
                 current === "front" ? "back" : "front",
               )
             }
+            disabled={capturing || countdown !== null}
           >
             <SwitchCamera color="#fff" size={22} />
           </TouchableOpacity>
@@ -407,7 +480,7 @@ export default function TakeMeasurements() {
           {!hasBodyInfo ? (
             <TouchableOpacity
               style={styles.bodyInfoBtn}
-              onPress={() => router.push("/bodyInfo")}
+              onPress={() => router.push(`/client/${clientId}` as any)}
             >
               <Text style={styles.bodyInfoText}>
                 Add height and weight first
@@ -415,7 +488,7 @@ export default function TakeMeasurements() {
             </TouchableOpacity>
           ) : (
             <Text style={styles.profileText}>
-              Height {profile?.height} cm Weight {profile?.weight} kg
+              Height {client?.height} cm Weight {client?.weight} kg
             </Text>
           )}
 
@@ -450,7 +523,7 @@ export default function TakeMeasurements() {
                   : "Tap for 5s timer — side view"}
           </Text>
         </View>
-      </CameraView>
+      </View>
     </View>
   );
 }
@@ -524,6 +597,10 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
     },
     cameraScreen: { flex: 1, backgroundColor: "#000" },
     camera: { flex: 1 },
+    cameraOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 1,
+    },
     topBar: {
       position: "absolute",
       top: 0,
@@ -637,6 +714,26 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
       fontWeight: "700",
       marginTop: 18,
       textAlign: "center",
+    },
+    processingPercent: {
+      color: "#fff",
+      fontSize: 36,
+      fontWeight: "800",
+      marginTop: 16,
+      textAlign: "center",
+    },
+    progressTrack: {
+      width: "82%",
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: "rgba(255,255,255,0.18)",
+      overflow: "hidden",
+      marginTop: 14,
+    },
+    progressFill: {
+      height: "100%",
+      borderRadius: 5,
+      backgroundColor: theme.primary,
     },
     processingSubtitle: {
       color: "rgba(255,255,255,0.72)",
