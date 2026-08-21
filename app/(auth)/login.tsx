@@ -19,7 +19,11 @@ import { useGoogleSignIn } from "../../hooks/useGoogleSignIn";
 
 export default function Login() {
   const { login } = useAuth();
-  const { signInWithGoogle, loading: googleLoading, error: googleError } = useGoogleSignIn();
+  const {
+    signInWithGoogle,
+    loading: googleLoading,
+    error: googleError,
+  } = useGoogleSignIn();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -84,10 +88,11 @@ export default function Login() {
                 secureTextEntry={!showPassword}
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                {showPassword
-                  ? <Eye color="#555" size={20} />
-                  : <EyeOff color="#555" size={20} />
-                }
+                {showPassword ? (
+                  <Eye color="#555" size={20} />
+                ) : (
+                  <EyeOff color="#555" size={20} />
+                )}
               </TouchableOpacity>
             </View>
 
@@ -105,10 +110,11 @@ export default function Login() {
             onPress={handleLogin}
             disabled={loading}
           >
-            {loading
-              ? <ActivityIndicator color="#111" />
-              : <Text style={styles.signInBtnText}>Sign In</Text>
-            }
+            {loading ? (
+              <ActivityIndicator color="#111" />
+            ) : (
+              <Text style={styles.signInBtnText}>Sign In</Text>
+            )}
           </TouchableOpacity>
 
           {/* Or continue with */}
@@ -126,13 +132,14 @@ export default function Login() {
               onPress={signInWithGoogle}
               disabled={googleLoading}
             >
-              {googleLoading
-                ? <ActivityIndicator color="#fff" size="small" />
-                : <Image
-                    source={require("../../assets/icons/google.png")}
-                    style={styles.socialIcon}
-                  />
-              }
+              {googleLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Image
+                  source={require("../../assets/icons/google.png")}
+                  style={styles.socialIcon}
+                />
+              )}
             </TouchableOpacity>
 
             {/* Phone */}
@@ -146,7 +153,7 @@ export default function Login() {
 
           {/* Sign up */}
           <View style={styles.signupRow}>
-            <Text style={styles.signupText}>Don't have an account? </Text>
+            <Text style={styles.signupText}>Dont have an account? </Text>
             <TouchableOpacity onPress={() => router.push("/(auth)/signup")}>
               <Text style={styles.signupLink}>Sign Up</Text>
             </TouchableOpacity>

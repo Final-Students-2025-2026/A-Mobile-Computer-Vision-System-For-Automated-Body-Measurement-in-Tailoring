@@ -36,8 +36,10 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db } from "../../config/firebase";
-import { useAuth } from "../../contexts/AuthContext";
 import { useAppTheme } from "../../contexts/ThemeContext";
+
+const formatMeasurement = (value: number) =>
+  `${value} cm / ${(value / 2.54).toFixed(1)} in`;
 
 export default function ClientProfile() {
   const router = useRouter();
@@ -55,6 +57,7 @@ export default function ClientProfile() {
   const [photoURL, setPhotoURL] = useState("");
   const [gender, setGender] = useState(1);
   const [age, setAge] = useState("");
+  const [height, setHeight] = useState("");
   const [weight, setWeight] = useState("");
 
   useEffect(() => {
@@ -73,6 +76,7 @@ export default function ClientProfile() {
           setPhotoURL((data as any).photoURL || "");
           setGender((data as any).gender || 1);
           setAge((data as any).age ? String((data as any).age) : "");
+          setHeight((data as any).height ? String((data as any).height) : "");
           setWeight((data as any).weight ? String((data as any).weight) : "");
         }
 
@@ -138,6 +142,7 @@ export default function ClientProfile() {
     setPhotoURL(client?.photoURL || "");
     setGender(client?.gender || 1);
     setAge((client as any)?.age ? String((client as any).age) : "");
+    setHeight((client as any)?.height ? String((client as any).height) : "");
     setWeight((client as any)?.weight ? String((client as any).weight) : "");
     setIsEditing(false);
   };
@@ -155,6 +160,7 @@ export default function ClientProfile() {
         photoURL,
         gender,
         age: age ? Number(age) : null,
+        height: height ? Number(height) : null,
         weight: weight ? Number(weight) : null,
         updatedAt: serverTimestamp(),
       });
@@ -167,6 +173,7 @@ export default function ClientProfile() {
         photoURL,
         gender,
         age: age ? Number(age) : null,
+        height: height ? Number(height) : null,
         weight: weight ? Number(weight) : null,
       }));
       setIsEditing(false);
@@ -222,7 +229,7 @@ export default function ClientProfile() {
     ].filter(Boolean);
     const measurementLines = measurementKeys.flatMap((key) => {
       const value = measurements[key];
-      return typeof value === "number" ? [`${key}: ${value} cm`] : [];
+      return typeof value === "number" ? [`${key}: ${formatMeasurement(value)}`] : [];
     });
 
     return [
@@ -410,6 +417,17 @@ export default function ClientProfile() {
                 />
               </View>
               <View style={styles.rowSplitItem}>
+                <Text style={styles.label}>Height (cm)</Text>
+                <TextInput
+                  placeholder="e.g. 165"
+                  placeholderTextColor={theme.muted}
+                  style={styles.input}
+                  value={height}
+                  onChangeText={setHeight}
+                  keyboardType="number-pad"
+                />
+              </View>
+              <View style={styles.rowSplitItem}>
                 <Text style={styles.label}>Weight (kg)</Text>
                 <TextInput
                   placeholder="e.g. 70"
@@ -502,7 +520,7 @@ export default function ClientProfile() {
                     <Text style={styles.measureLabel}>{key}</Text>
                     <Text style={styles.measureValue}>
                       {typeof measurements[key] === "number"
-                        ? `${measurements[key]} cm`
+                        ? formatMeasurement(measurements[key])
                         : "--"}
                     </Text>
                   </View>

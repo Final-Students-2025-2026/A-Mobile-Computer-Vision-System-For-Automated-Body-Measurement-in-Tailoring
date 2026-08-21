@@ -39,8 +39,8 @@ export default function RootLayout() {
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="profile" />
-          <Stack.Screen name="client" />
-          <Stack.Screen name="measurements" />
+          <Stack.Screen name="client/[id]" />
+          <Stack.Screen name="measurements/[id]" />
           <Stack.Screen name="newClient" />
           <Stack.Screen name="bodyInfo" />
         </Stack>

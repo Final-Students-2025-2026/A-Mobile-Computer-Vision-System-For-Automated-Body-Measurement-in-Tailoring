@@ -14,9 +14,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ChevronLeft, ChevronDown } from "lucide-react-native";
-import CountryPicker, { Country, CountryCode } from "react-native-country-picker-modal";
+import CountryPicker, {
+  Country,
+  CountryCode,
+} from "react-native-country-picker-modal";
 import { useGoogleSignIn } from "../../hooks/useGoogleSignIn";
-import { auth } from "../../config/firebase";
+import { auth, db } from "../../config/firebase";
 import {
   signInWithPhoneNumber,
   PhoneAuthProvider,
@@ -25,13 +28,16 @@ import {
   updateProfile,
 } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "../../config/firebase";
 
 type Step = "phone" | "otp" | "name";
 
-export default async function PhoneLogin() {
+export default function PhoneLogin() {
   const router = useRouter();
-  const { signInWithGoogle, loading: googleLoading, error: googleError } = useGoogleSignIn();
+  const {
+    signInWithGoogle,
+    loading: googleLoading,
+    error: googleError,
+  } = useGoogleSignIn();
 
   const [step, setStep] = useState<Step>("phone");
   const [countryCode, setCountryCode] = useState<CountryCode>("GH");
@@ -44,9 +50,6 @@ export default async function PhoneLogin() {
   const [error, setError] = useState("");
   const confirmationRef = useRef<ConfirmationResult | null>(null);
   // Remove leading 0 from phone number
-const cleanPhone = phone.startsWith("0") ? phone.slice(1) : phone;
-const fullPhone = `+${callingCode}${cleanPhone}`;
-const confirmation = await signInWithPhoneNumber(auth, fullPhone);
 
   const onSelectCountry = (country: Country) => {
     setCountryCode(country.cca2);
@@ -55,16 +58,30 @@ const confirmation = await signInWithPhoneNumber(auth, fullPhone);
   };
 
   const handleSendOTP = async () => {
-    if (!phone || phone.length < 6) return setError("Enter a valid phone number");
+    if (!phone || phone.length < 6) {
+      return setError("Enter a valid phone number");
+    }
+
     setError("");
     setLoading(true);
+
     try {
-      const fullPhone = `+${callingCode}${phone}`;
+      const cleanPhone = phone.startsWith("0") ? phone.slice(1) : phone;
+
+      const fullPhone = `+${callingCode}${cleanPhone}`;
+
+      console.log("Sending OTP to:", fullPhone);
+
       const confirmation = await signInWithPhoneNumber(auth, fullPhone);
+
       confirmationRef.current = confirmation;
       setStep("otp");
     } catch (e: any) {
-      setError(e.message || "Could not send OTP. Check your number and try again.");
+      console.log("PHONE AUTH ERROR:", e);
+
+      setError(
+        e.message || "Could not send OTP. Check your number and try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -101,11 +118,15 @@ const confirmation = await signInWithPhoneNumber(auth, fullPhone);
         // Update display name
         await updateProfile(user, { displayName: name.trim() });
         // Save to Firestore
-        await setDoc(doc(db, "users", user.uid), {
-          name: name.trim(),
-          phone: `+${callingCode}${phone}`,
-          createdAt: serverTimestamp(),
-        }, { merge: true });
+        await setDoc(
+          doc(db, "users", user.uid),
+          {
+            name: name.trim(),
+            phone: `+${callingCode}${phone}`,
+            createdAt: serverTimestamp(),
+          },
+          { merge: true },
+        );
       }
       router.replace("/(tabs)");
     } catch (e: any) {
@@ -189,7 +210,8 @@ const confirmation = await signInWithPhoneNumber(auth, fullPhone);
               </View>
 
               <View style={styles.orRow}>
-                <View style={styles.divider} />git
+                <View style={styles.divider} />
+
                 <Text style={styles.orText}>Or</Text>
                 <View style={styles.divider} />
               </View>
@@ -213,7 +235,7 @@ const confirmation = await signInWithPhoneNumber(auth, fullPhone);
               </TouchableOpacity>
 
               <View style={styles.signupRow}>
-                <Text style={styles.signupText}>Don't have an account? </Text>
+                <Text style={styles.signupText}>Do not have an account? </Text>
                 <TouchableOpacity onPress={() => router.push("/(auth)/signup")}>
                   <Text style={styles.signupLink}>Sign Up</Text>
                 </TouchableOpacity>
@@ -252,7 +274,9 @@ const confirmation = await signInWithPhoneNumber(auth, fullPhone);
                     key={index}
                     style={[styles.otpBox, digit ? styles.otpBoxFilled : null]}
                     value={digit}
-                    onChangeText={(val) => handleOTPChange(val.slice(-1), index)}
+                    onChangeText={(val) =>
+                      handleOTPChange(val.slice(-1), index)
+                    }
                     keyboardType="number-pad"
                     maxLength={1}
                     textAlign="center"
@@ -262,7 +286,7 @@ const confirmation = await signInWithPhoneNumber(auth, fullPhone);
               </View>
 
               <View style={styles.resendRow}>
-                <Text style={styles.resendText}>Didn't receive a code? </Text>
+                <Text style={styles.resendText}>Did not receive a code? </Text>
                 <TouchableOpacity onPress={handleSendOTP}>
                   <Text style={styles.resendLink}>Resend</Text>
                 </TouchableOpacity>
@@ -285,9 +309,9 @@ const confirmation = await signInWithPhoneNumber(auth, fullPhone);
           {/* NAME STEP */}
           {step === "name" && (
             <View style={styles.stepContainer}>
-              <Text style={styles.title}>What's your{"\n"}name?</Text>
+              <Text style={styles.title}>What&apos;s your{"\n"}name?</Text>
               <Text style={styles.subtitle}>
-                This is how you'll appear on the app
+                This is how you&apos;ll appear on the app
               </Text>
 
               {error ? <Text style={styles.error}>{error}</Text> : null}
