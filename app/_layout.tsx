@@ -2,6 +2,7 @@ import { Stack } from "expo-router";
 import React, { useEffect } from "react";
 import { AuthProvider } from "../contexts/AuthContext";
 import { ThemeProvider } from "../contexts/ThemeContext";
+import { setupMediaPipe } from "../services/mediaPipeAdapter";
 import {
   useFonts,
   PlusJakartaSans_400Regular,
@@ -26,6 +27,13 @@ export default function RootLayout() {
   useEffect(() => {
     if (fontsLoaded) SplashScreen.hideAsync();
   }, [fontsLoaded]);
+
+  // Register the native pose detector before a measurement scan begins.
+  // Without this, the measurement engine has no pose adapter and rejects
+  // every capture as having no full body.
+  useEffect(() => {
+    setupMediaPipe();
+  }, []);
 
   if (!fontsLoaded) return null;
 
