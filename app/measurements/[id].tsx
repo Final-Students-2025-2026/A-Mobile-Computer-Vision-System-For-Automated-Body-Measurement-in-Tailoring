@@ -75,9 +75,10 @@ export default function TakeMeasurements() {
     Boolean(client?.height && client.height >= 80 && client.height <= 260) &&
     Boolean(client?.weight && client.weight >= 25 && client.weight <= 260);
 
-  useEffect(() => {
+   useEffect(() => {
     if (!clientId || clientId === "new") {
       setClientLoading(false);
+      router.replace("/(tabs)/clients?mode=scan");
       return;
     }
 
@@ -93,7 +94,7 @@ export default function TakeMeasurements() {
     };
 
     fetchClient();
-  }, [clientId]);
+  }, [clientId, router]);
 
   useEffect(() => {
     return () => {
