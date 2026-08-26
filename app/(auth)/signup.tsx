@@ -15,10 +15,16 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Eye, EyeOff } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../contexts/AuthContext";
+import { useGoogleSignIn } from "../../hooks/useGoogleSignIn";
 
 export default function Signup() {
   const { signup } = useAuth();
   const router = useRouter();
+  const {
+    signInWithGoogle,
+    loading: googleLoading,
+    error: googleError,
+  } = useGoogleSignIn();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -65,7 +71,9 @@ export default function Signup() {
 
           {/* Form */}
           <View style={styles.form}>
-            {error ? <Text style={styles.error}>{error}</Text> : null}
+            {error || googleError ? (
+              <Text style={styles.error}>{error || googleError}</Text>
+            ) : null}
 
             <TextInput
               style={styles.input}
@@ -144,11 +152,19 @@ export default function Signup() {
           </View>
 
           <View style={styles.socialRow}>
-            <TouchableOpacity style={styles.socialBtn}>
-              <Image
-                source={require("../../assets/icons/google.png")}
-                style={styles.socialIcon}
-              />
+            <TouchableOpacity
+              style={styles.socialBtn}
+              onPress={signInWithGoogle}
+              disabled={googleLoading}
+            >
+              {googleLoading ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Image
+                  source={require("../../assets/icons/google.png")}
+                  style={styles.socialIcon}
+                />
+              )}
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.socialBtn}
