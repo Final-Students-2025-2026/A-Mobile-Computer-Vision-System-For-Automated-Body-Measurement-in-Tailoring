@@ -59,6 +59,7 @@ export default function TakeMeasurements() {
   const [step, setStep] = useState<Step>("instructions");
   const [scanView, setScanView] = useState<ScanView>("front");
   const [frontFrame, setFrontFrame] = useState<CameraFrame | null>(null);
+  const [frontFrames, setFrontFrames] = useState<CameraFrame[]>([]);
   const [cameraFacing, setCameraFacing] = useState<CameraFacing>("front");
   const [measurements, setMeasurements] = useState<Measurements>({});
   const [confidence, setConfidence] = useState(0);
@@ -75,9 +76,10 @@ export default function TakeMeasurements() {
     Boolean(client?.height && client.height >= 80 && client.height <= 260) &&
     Boolean(client?.weight && client.weight >= 25 && client.weight <= 260);
 
-  useEffect(() => {
+   useEffect(() => {
     if (!clientId || clientId === "new") {
       setClientLoading(false);
+      router.replace("/(tabs)/clients?mode=scan");
       return;
     }
 
@@ -93,7 +95,7 @@ export default function TakeMeasurements() {
     };
 
     fetchClient();
-  }, [clientId]);
+  }, [clientId, router]);
 
   useEffect(() => {
     return () => {
@@ -141,6 +143,7 @@ export default function TakeMeasurements() {
     }
 
     setFrontFrame(null);
+    setFrontFrames([]);
     setScanView("front");
     setStep("camera");
   };
@@ -198,7 +201,28 @@ export default function TakeMeasurements() {
       };
 
       if (scanView === "front") {
+        // Capture a short burst from the same pose. The measurement engine
+        // uses the median result, removing one-off landmark jitter.
+        const frames = [frame];
+        for (let index = 0; index < 2; index += 1) {
+          const extraPhoto = await cameraRef.current.takePictureAsync({
+            quality: 0.75,
+            skipProcessing: false,
+            shutterSound: false,
+          });
+          if (extraPhoto?.uri) {
+            frames.push({
+              uri: extraPhoto.uri,
+              width: extraPhoto.width,
+              height: extraPhoto.height,
+              cameraFacing,
+              captureView: "front",
+              capturedAt: Date.now(),
+            });
+          }
+        }
         setFrontFrame(frame);
+        setFrontFrames(frames);
         setScanView("side");
         return;
       }
@@ -220,6 +244,7 @@ export default function TakeMeasurements() {
         knownAge: client.age,
         knownGender: client.gender,
         front: frontFrame,
+        frontFrames: frontFrames.slice(1),
         right: frame,
         requirePoseDetection: true,
       });
@@ -397,6 +422,7 @@ export default function TakeMeasurements() {
             style={styles.iconBtn}
             onPress={() => {
               setFrontFrame(null);
+              setFrontFrames([]);
               setScanView("front");
               setStep("camera");
             }}

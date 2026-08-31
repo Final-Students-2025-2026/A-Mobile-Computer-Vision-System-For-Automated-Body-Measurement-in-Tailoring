@@ -173,7 +173,7 @@ export default function Dashboard() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.secondaryBtn}
-            onPress={() => router.push("/measurements/new")}
+            onPress={() => router.push("/(tabs)/clients?mode=scan")}
           >
             <Ruler color={theme.primary} size={18} />
             <Text style={styles.secondaryBtnText}>Start scan</Text>
@@ -304,4 +304,3 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>["theme"]) =>
     },
     secondaryBtnText: { color: theme.text, fontSize: 13, fontWeight: "500" },
   });
-

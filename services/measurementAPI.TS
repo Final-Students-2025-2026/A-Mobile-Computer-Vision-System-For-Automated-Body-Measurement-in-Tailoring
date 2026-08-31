@@ -1,4 +1,6 @@
-const API_URL = "https://measure-ai-api.onrender.com";
+const API_URL =
+  process.env.EXPO_PUBLIC_VALIDATION_API_URL ||
+  "https://measure-ai-api.onrender.com";
 
 export interface ValidationInput {
   height: number;

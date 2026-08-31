@@ -43,13 +43,6 @@ export const measurementParts = [
     baselineCm: 62,
   },
   {
-    id: "shortSleeve",
-    label: "Short sleeve",
-    category: "Arms",
-    guide: "Keep your full body visible, facing the camera.",
-    baselineCm: 24,
-  },
-  {
     id: "bicep",
     label: "Bicep",
     category: "Arms",
@@ -170,9 +163,11 @@ export type BodyScanResult = {
 export type BodyScanSessionInput = {
   knownHeightCm: number;
   knownWeightKg?: number;
-  knownAge?: number;
-  knownGender?: number;
+  knownAge?: number | null;
+  knownGender?: number | null;
   front: CameraFrame;
+  /** Additional front captures from the same standing position. */
+  frontFrames?: CameraFrame[];
   left?: CameraFrame;
   right?: CameraFrame;
   requirePoseDetection?: boolean;
@@ -272,7 +267,6 @@ function estimateBodyScanFromThreeViews(
     if (
       reading.measurementType !== "shoulder" &&
       reading.measurementType !== "sleeve" &&
-      reading.measurementType !== "shortSleeve" &&
       reading.measurementType !== "inseam" &&
       reading.measurementType !== "outseam"
     ) {
@@ -340,7 +334,10 @@ export async function analyzeBodyScanSession(
   const nativeScan = scanAdapter ? await scanAdapter(input.front) : null;
   if (nativeScan?.readings) return nativeScan;
 
-  const frontPose = poseAdapter ? await poseAdapter(input.front) : null;
+  const frontFrames = [input.front, ...(input.frontFrames ?? [])].slice(0, 3);
+  const frontPoses = poseAdapter
+    ? await Promise.all(frontFrames.map((frame) => poseAdapter!(frame)))
+    : frontFrames.map(() => null);
 
   const leftPose =
     input.left && poseAdapter ? await poseAdapter(input.left) : null;
@@ -348,7 +345,25 @@ export async function analyzeBodyScanSession(
   const rightPose =
     input.right && poseAdapter ? await poseAdapter(input.right) : null;
 
-  if (!hasUsablePose(frontPose)) {
+  const usableFrontScans = frontFrames.flatMap((frame, index) => {
+    const pose = frontPoses[index];
+    if (!hasUsablePose(pose)) return [];
+    const calibration = calibrateFromHeight(input.knownHeightCm, frame, pose);
+    return [
+      estimateBodyScanFromThreeViews(
+        frame,
+        pose,
+        input.left,
+        leftPose,
+        input.right,
+        rightPose,
+        calibration,
+        input.knownWeightKg,
+      ),
+    ];
+  });
+
+  if (!usableFrontScans.length) {
     if (input.requirePoseDetection) {
       throw new MeasurementDetectionError(
         "No full body detected. Stand further back and keep your entire body visible.",
@@ -358,23 +373,9 @@ export async function analyzeBodyScanSession(
     return estimateBodyScanFromProfile(input);
   }
 
-  const calibration = calibrateFromHeight(
-    input.knownHeightCm,
-    input.front,
-    frontPose,
-  );
-
-  // Generate the measurements first
-  const scan = estimateBodyScanFromThreeViews(
-    input.front,
-    frontPose,
-    input.left,
-    leftPose,
-    input.right,
-    rightPose,
-    calibration,
-    input.knownWeightKg,
-  );
+  // Use the median of up to three front captures. Median aggregation rejects
+  // a single jittery pose frame instead of allowing it to shift every result.
+  const scan = medianScans(usableFrontScans);
 
   // Validate and adjust the measurements using your API
   await validateBodyMeasurements(
@@ -385,95 +386,112 @@ export async function analyzeBodyScanSession(
     input.knownGender,
   );
 
-  normalizeBodyProportions(scan, input.knownHeightCm, input.knownWeightKg);
-
   // Return the validated scan
   return scan;
 }
+
+function medianScans(scans: BodyScanResult[]): BodyScanResult {
+  if (scans.length === 1) return scans[0];
+  const middle = (values: number[]) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    const index = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[index] : (sorted[index - 1] + sorted[index]) / 2;
+  };
+  const readings = measurementParts.reduce((result, part) => {
+    const samples = scans.map((scan) => scan.readings[part.id]);
+    const reference = samples[0];
+    const contourSamples = samples
+      .map((reading) => reading.contour)
+      .filter((contour): contour is BodyContourSample => Boolean(contour));
+    result[part.id] = {
+      ...reference,
+      valueCm: Math.round(middle(samples.map((reading) => reading.valueCm)) * 10) / 10,
+      confidence: Math.min(...samples.map((reading) => reading.confidence)),
+      contour: contourSamples.length
+        ? {
+            ...contourSamples[0],
+            widthCm: middle(contourSamples.map((contour) => contour.widthCm)),
+            depthCm: middle(contourSamples.map((contour) => contour.depthCm)),
+          }
+        : undefined,
+    };
+    return result;
+  }, {} as Record<MeasurementType, MeasurementResult>);
+
+  return {
+    ...scans[0],
+    readings,
+    confidence: Math.min(...scans.map((scan) => scan.confidence)),
+    calibration: scans[0].calibration
+      ? {
+          ...scans[0].calibration,
+          pixelsPerCm: middle(
+            scans
+              .map((scan) => scan.calibration?.pixelsPerCm)
+              .filter(isNumber),
+          ),
+        }
+      : undefined,
+  };
+}
+
 function calibrateFromHeight(
   knownHeightCm: number,
   frame: CameraFrame,
   pose: MediaPipePoseResult,
 ): ScanCalibration {
   const dimensions = imageDimensions(frame, pose);
-
-  if (!dimensions) {
+  if (!dimensions)
     throw new MeasurementDetectionError(
       "Image dimensions are unavailable; the scan cannot be calibrated safely.",
     );
-  }
-
-  const landmarks = pose.landmarks;
-
-  // Important MediaPipe landmarks
-  const nose = landmarks[0];
-  const leftEar = landmarks[7];
-  const rightEar = landmarks[8];
-
-  const leftAnkle = landmarks[27];
-  const rightAnkle = landmarks[28];
-
-  if (!leftAnkle || !rightAnkle) {
-    throw new MeasurementDetectionError(
-      "Both ankles must be visible. Step back and keep your full body in frame.",
-    );
-  }
-
-  const ankle = midpoint(leftAnkle, rightAnkle);
-
-  if (!ankle) {
-    throw new MeasurementDetectionError("Could not determine ankle position.");
-  }
-
-  /*
-   * MediaPipe's nose landmark is below the top of the head.
-   * Estimate the top of the head using the ears/nose geometry.
-   */
-  const earPoints = [leftEar, rightEar].filter(Boolean) as PoseLandmark[];
-
-  let headY = nose?.y ?? 0;
-
-  if (earPoints.length === 2) {
-    const earY = average(earPoints.map((p) => p.y).filter(isNumber));
-
-    // Approximate distance from nose/ear region to top of head.
-    headY = Math.max(0, earY - Math.abs(earY - (nose?.y ?? earY)) * 1.5);
-  }
-
-  /*
-   * Use the highest reliable landmark around the head.
-   */
-  const head = {
-    x: nose?.x ?? 0.5,
-    y: headY,
-  } as PoseLandmark;
-
+  const head =
+    midpoint(pose.landmarks[2], pose.landmarks[5]) ?? pose.landmarks[0];
+  const ankles = midpoint(pose.landmarks[27], pose.landmarks[28]);
   const heightPx = pixelDistance(
     head,
-    ankle,
+    ankles,
     dimensions.width,
     dimensions.height,
   );
+  const visibility = average(
+    [
+      head?.visibility,
+      pose.landmarks[27]?.visibility,
+      pose.landmarks[28]?.visibility,
+    ].filter(isNumber),
+  );
+  const ratio = heightPx / dimensions.height;
 
-  const visibilityValues = [
-    nose?.visibility,
-    leftEar?.visibility,
-    rightEar?.visibility,
-    leftAnkle.visibility,
-    rightAnkle.visibility,
-  ].filter(isNumber);
-
-  const visibility = average(visibilityValues);
-
-  if (heightPx < dimensions.height * 0.35 || visibility < 0.45) {
+  // A small ratio means the person is farther away, not too close. The
+  // previous check had this direction reversed and rejected valid full-body
+  // captures while asking the user to move even farther back.
+  if (ratio > 0.94) {
     throw new MeasurementDetectionError(
-      "Your full body must be clearly visible from head to ankles for calibration. Step back and try again.",
+      "Move farther back so your full body fits in the frame.",
     );
   }
 
+  if (ratio < 0.3) {
+    throw new MeasurementDetectionError(
+      "Move a little closer so your full body can be measured clearly.",
+    );
+  }
+
+  if (visibility < 0.6) {
+    throw new MeasurementDetectionError(
+      "Stand in better lighting and keep your ankles visible.",
+    );
+  }
+  // The eye-to-ankle span is not full stature. Eyes sit at roughly 93.6%
+  // of height and the ankle at roughly 3.9%, so the visible span covers
+  // about 90% of the person. Dividing by full stature made pixelsPerCm
+  // ~10% too small and inflated every derived measurement by ~11%.
+  const EYE_TO_ANKLE_FRACTION = 0.897;
+
   return {
     knownHeightCm,
-    pixelsPerCm: heightPx / knownHeightCm,
+    pixelsPerCm: heightPx / (knownHeightCm * EYE_TO_ANKLE_FRACTION),
     confidence: clamp(visibility * 0.96, 0.45, 0.98),
     method: "user-height",
   };
@@ -540,7 +558,7 @@ function estimateBodyScanFromProfile(
     {} as Record<MeasurementType, MeasurementResult>,
   );
 
-  const scan: BodyScanResult = {
+  return {
     readings,
     confidence,
     source: "calibration",
@@ -554,10 +572,6 @@ function estimateBodyScanFromProfile(
       method: "user-height",
     },
   };
-
-  normalizeBodyProportions(scan, input.knownHeightCm, input.knownWeightKg);
-
-  return scan;
 }
 
 function estimateBodyScanFromPose(
@@ -734,13 +748,13 @@ function frontWidths(values: {
 
   const neckWidth = values.shoulderWidth * 0.38;
 
-  const bicepWidth = values.shoulderWidth * 0.13 + values.armLength * 0.035;
+  const bicepWidth = values.armLength * 0.115;
 
   const wristWidth = values.armLength * 0.055;
 
   const thighWidth = values.hipWidth * 0.58;
 
-  const calfWidth = values.hipWidth * 0.14 + values.lowerLeg * 0.15;
+  const calfWidth = values.lowerLeg * 0.3;
 
   return {
     neck: neckWidth,
@@ -754,8 +768,6 @@ function frontWidths(values: {
     hip: hipWidth,
 
     sleeve: values.armLength,
-
-    shortSleeve: values.armLength * 0.38,
 
     bicep: bicepWidth,
 
@@ -811,7 +823,6 @@ function bodyMassDepthFactor(
       waist: 0.28,
       hip: 0.22,
       sleeve: 0.04,
-      shortSleeve: 0.03,
       bicep: 0.16,
       wrist: 0.04,
       inseam: 0.02,
@@ -823,9 +834,7 @@ function bodyMassDepthFactor(
   return clamp(1 + ((bmi - 22) / 22) * sensitivity, 0.86, 1.22);
 }
 function isCircumference(type: MeasurementType) {
-  return !["shoulder", "sleeve", "shortSleeve", "inseam", "outseam"].includes(
-    type,
-  );
+  return !["shoulder", "sleeve", "inseam", "outseam"].includes(type);
 }
 function linearEstimate(
   type: MeasurementType,
@@ -922,8 +931,8 @@ async function validateBodyMeasurements(
   scan: BodyScanResult,
   height: number,
   weight?: number,
-  age?: number,
-  gender?: number,
+  age?: number | null,
+  gender?: number | null,
 ) {
   const bmi = weight ? weight / Math.pow(height / 100, 2) : 22;
 
@@ -939,25 +948,17 @@ async function validateBodyMeasurements(
     try {
       const result = await validateMeasurement({
         height,
-
         weight: weight ?? 70,
-
         bmi,
-
-        age: isPlausibleAge(age) ? age : 25,
-
-        gender: isPlausibleGender(gender) ? gender : 1,
-
+        age: age ?? 25,
+        gender: gender ?? 1,
         body_part: part.id,
-
         ar_measurement: reading.valueCm,
-
         unit: "cm",
       });
 
       if (!result.is_valid) {
         reading.valueCm = result.suggested_value;
-
         reading.confidence = Math.min(0.99, reading.confidence + 0.05);
       }
     } catch (err) {
