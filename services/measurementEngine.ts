@@ -436,9 +436,18 @@ function calibrateFromHeight(
   );
   const ratio = heightPx / dimensions.height;
 
-  if (ratio < 0.5) {
+  // A small ratio means the person is farther away, not too close. The
+  // previous check had this direction reversed and rejected valid full-body
+  // captures while asking the user to move even farther back.
+  if (ratio > 0.94) {
     throw new MeasurementDetectionError(
       "Move farther back so your full body fits in the frame.",
+    );
+  }
+
+  if (ratio < 0.3) {
+    throw new MeasurementDetectionError(
+      "Move a little closer so your full body can be measured clearly.",
     );
   }
 
