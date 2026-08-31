@@ -227,10 +227,7 @@ export const captureGuideSteps: CaptureGuideStep[] = [
   },
 ];
 
-function calculateDepth(
-  type: MeasurementType,
-  frontWidth: number,
-): number {
+function calculateDepth(type: MeasurementType, frontWidth: number): number {
   const inferredDepth = frontWidth * depthRatio(type);
 
   // Pose landmarks identify joints, not the skin contour. Their separation
@@ -264,14 +261,13 @@ function estimateBodyScanFromThreeViews(
   Object.values(base.readings).forEach((reading) => {
     if (!reading.contour) return;
 
-    reading.contour.depthCm = calculateDepth(
-      reading.measurementType,
-      reading.contour.widthCm,
-    ) * bodyMassDepthFactor(
-      calibration.knownHeightCm,
-      knownWeightKg,
-      reading.measurementType,
-    );
+    reading.contour.depthCm =
+      calculateDepth(reading.measurementType, reading.contour.widthCm) *
+      bodyMassDepthFactor(
+        calibration.knownHeightCm,
+        knownWeightKg,
+        reading.measurementType,
+      );
 
     if (
       reading.measurementType !== "shoulder" &&
@@ -651,10 +647,7 @@ function estimateBodyScanFromPose(
     (result, part) => {
       const widthCm = widths[part.id];
       const fallbackDepth =
-        calculateDepth(
-          part.id,
-          widthCm,
-        ) *
+        calculateDepth(part.id, widthCm) *
         bodyMassDepthFactor(calibration.knownHeightCm, knownWeightKg, part.id);
       //confidence
       const confidence = clamp(
