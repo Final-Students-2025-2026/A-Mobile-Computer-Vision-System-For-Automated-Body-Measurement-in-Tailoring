@@ -16,14 +16,10 @@ import {
   LogOut,
   Moon,
   Sun,
+  Ruler,
 } from "lucide-react-native";
 import { useAuth } from "../contexts/AuthContext";
 import { ThemeName, useAppTheme } from "../contexts/ThemeContext";
-import { useState } from "react";
-import { TextInput, Alert } from "react-native";
-import { useUserProfile } from "../hooks/useUserProfile";
-import { Scale, Ruler, Calendar, Users } from "lucide-react-native";
-import { useEffect } from "react";
 
 function getUserName(user: ReturnType<typeof useAuth>["user"]) {
   return user?.displayName || user?.email?.split("@")[0] || "User";
@@ -40,32 +36,6 @@ function getInitials(user: ReturnType<typeof useAuth>["user"]) {
 }
 
 export default function Profile() {
-  const { profile, loading, saveProfile } = useUserProfile();
-  const [height, setHeight] = useState(profile?.height?.toString() || "");
-  const [weight, setWeight] = useState(profile?.weight?.toString() || "");
-  const [age, setAge] = useState(profile?.age?.toString() || "");
-  const [gender, setGender] = useState(profile?.gender || 1);
-  const [saving, setSaving] = useState(false);
-
-  const handleSaveBodyData = async () => {
-    if (!height || !weight || !age) {
-      Alert.alert("Error", "Please fill in all fields");
-      return;
-    }
-    setSaving(true);
-    const success = await saveProfile({
-      height: parseFloat(height),
-      weight: parseFloat(weight),
-      age: parseInt(age),
-      gender,
-      bmi: 0, // calculated in hook
-      unit: "cm",
-    });
-    setSaving(false);
-    if (success) {
-      Alert.alert("Saved!", "Your body measurements have been saved.");
-    }
-  };
   const router = useRouter();
   const { user, logout } = useAuth();
   const { theme, themeName, setThemeName } = useAppTheme();
@@ -118,7 +88,7 @@ export default function Profile() {
             </View>
           </View>
         </View>
-        {/* Body Info */}
+        {/* General body information belongs to individual client records.
 <TouchableOpacity
   style={styles.section}
   onPress={() => router.push("./bodyInfo")}
@@ -133,7 +103,7 @@ export default function Profile() {
     </View>
     <ChevronLeft color={theme.muted} size={18} style={{ transform: [{ rotate: "180deg" }] }} />
   </View>
-</TouchableOpacity>
+</TouchableOpacity> */}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Theme</Text>

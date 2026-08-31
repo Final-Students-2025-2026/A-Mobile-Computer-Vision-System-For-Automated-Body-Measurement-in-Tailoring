@@ -50,7 +50,6 @@ export default function RootLayout() {
           <Stack.Screen name="client/[id]" />
           <Stack.Screen name="measurements/[id]" />
           <Stack.Screen name="newClient" />
-          <Stack.Screen name="bodyInfo" />
         </Stack>
       </AuthProvider>
     </ThemeProvider>

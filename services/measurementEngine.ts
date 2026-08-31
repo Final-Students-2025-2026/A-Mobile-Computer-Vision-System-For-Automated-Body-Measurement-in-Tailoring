@@ -230,22 +230,20 @@ export const captureGuideSteps: CaptureGuideStep[] = [
 function calculateDepth(
   type: MeasurementType,
   frontWidth: number,
-  leftPose: MediaPipePoseResult | null,
-  rightPose: MediaPipePoseResult | null,
-  calibration: ScanCalibration,
 ): number {
-  let depth = frontWidth * depthRatio(type);
+  const inferredDepth = frontWidth * depthRatio(type);
 
-  const sideFactor = (leftPose ? 0.06 : 0) + (rightPose ? 0.06 : 0);
-
-  depth *= 1 + sideFactor;
-
-  return depth;
+  // Pose landmarks identify joints, not the skin contour. Their separation
+  // in a side capture is therefore not a dependable torso depth. Use the
+  // calibrated anthropometric ellipse ratio instead.
+  return inferredDepth;
 }
 function estimateBodyScanFromThreeViews(
   frame: CameraFrame,
   frontPose: MediaPipePoseResult,
+  leftFrame: CameraFrame | undefined,
   leftPose: MediaPipePoseResult | null,
+  rightFrame: CameraFrame | undefined,
   rightPose: MediaPipePoseResult | null,
   calibration: ScanCalibration,
   knownWeightKg?: number,
@@ -253,7 +251,9 @@ function estimateBodyScanFromThreeViews(
   const base = estimateBodyScanFromPose(
     frame,
     frontPose,
+    leftFrame,
     leftPose,
+    rightFrame,
     rightPose,
     calibration,
     knownWeightKg,
@@ -264,13 +264,14 @@ function estimateBodyScanFromThreeViews(
   Object.values(base.readings).forEach((reading) => {
     if (!reading.contour) return;
 
-    const depthScale = estimateDepthScale(
+    reading.contour.depthCm = calculateDepth(
       reading.measurementType,
-      leftPose,
-      rightPose,
+      reading.contour.widthCm,
+    ) * bodyMassDepthFactor(
+      calibration.knownHeightCm,
+      knownWeightKg,
+      reading.measurementType,
     );
-
-    reading.contour.depthCm *= depthScale;
 
     if (
       reading.measurementType !== "shoulder" &&
@@ -299,37 +300,6 @@ function estimateBodyScanFromThreeViews(
   return base;
 }
 
-function estimateDepthScale(
-  type: MeasurementType,
-  leftPose: MediaPipePoseResult | null,
-  rightPose: MediaPipePoseResult | null,
-) {
-  let scale = 1;
-
-  if (leftPose) scale += 0.06;
-
-  if (rightPose) scale += 0.06;
-
-  switch (type) {
-    case "chest":
-      scale *= 1.03;
-      break;
-
-    case "waist":
-      scale *= 1.04;
-      break;
-
-    case "hip":
-      scale *= 1.05;
-      break;
-
-    case "thigh":
-      scale *= 1.02;
-      break;
-  }
-
-  return scale;
-}
 let poseAdapter: MediaPipePoseAdapter | null = null;
 let scanAdapter: BodyScanAdapter | null = null;
 export function registerMediaPipePoseAdapter(adapter: MediaPipePoseAdapter) {
@@ -402,7 +372,9 @@ export async function analyzeBodyScanSession(
   const scan = estimateBodyScanFromThreeViews(
     input.front,
     frontPose,
+    input.left,
     leftPose,
+    input.right,
     rightPose,
     calibration,
     input.knownWeightKg,
@@ -595,7 +567,9 @@ function estimateBodyScanFromProfile(
 function estimateBodyScanFromPose(
   frame: CameraFrame,
   pose: MediaPipePoseResult,
+  leftFrame: CameraFrame | undefined,
   leftPose: MediaPipePoseResult | null,
+  rightFrame: CameraFrame | undefined,
   rightPose: MediaPipePoseResult | null,
   calibration: ScanCalibration,
   knownWeightKg?: number,
@@ -677,7 +651,10 @@ function estimateBodyScanFromPose(
     (result, part) => {
       const widthCm = widths[part.id];
       const fallbackDepth =
-        calculateDepth(part.id, widthCm, leftPose, rightPose, calibration) *
+        calculateDepth(
+          part.id,
+          widthCm,
+        ) *
         bodyMassDepthFactor(calibration.knownHeightCm, knownWeightKg, part.id);
       //confidence
       const confidence = clamp(
@@ -748,14 +725,19 @@ function frontWidths(values: {
 }): Record<MeasurementType, number> {
   const chestWidth = values.shoulderWidth * 0.94 + values.torsoHeight * 0.08;
 
-  // Linear interpolation along the torso axis
-  const torsoTaperFactor = 0.38; // Places waist ~38% up from hips toward shoulders
-  const waistWidth = Math.min(
-    values.hipWidth * 0.86,
-    values.hipWidth +
-      (values.shoulderWidth - values.hipWidth) * torsoTaperFactor,
-  );
-  const hipWidth = values.hipWidth * 1.08;
+  /*
+   * Hip pose points sit at the pelvic joints, inside the external body
+   * contour. Expand this skeletal width before estimating circumference.
+   */
+  const hipWidth = values.hipWidth * 1.4;
+
+  /*
+   * MediaPipe has no waist landmark. Infer its horizontal location 60% down
+   * the shoulder-to-hip torso axis, then apply normal waist taper.
+   */
+  const widthAtWaistLevel =
+    values.shoulderWidth + (hipWidth - values.shoulderWidth) * 0.6;
+  const waistWidth = Math.min(widthAtWaistLevel * 0.94, hipWidth * 0.9);
 
   const neckWidth = values.shoulderWidth * 0.38;
 
@@ -792,7 +774,9 @@ function frontWidths(values: {
 
     calf: calfWidth,
 
-    outseam: values.legLength,
+    // Hip-to-ankle is shorter than a tailor's outseam, which starts at the
+    // natural waist. Include the hip-to-waist rise.
+    outseam: values.legLength + values.torsoHeight * 0.24,
   };
 }
 
@@ -802,15 +786,15 @@ function depthRatio(type: MeasurementType) {
       neck: 0.44,
       shoulder: 0.36,
       chest: 0.74,
-      waist: 0.58,
-      hip: 0.82,
+      waist: 0.7,
+      hip: 0.75,
       sleeve: 0.31,
       shortSleeve: 0.24,
-      bicep: 0.38,
+      bicep: 0.42,
       wrist: 0.28,
       inseam: 0.42,
-      thigh: 0.58,
-      calf: 0.42,
+      thigh: 0.64,
+      calf: 0.48,
       outseam: 0.44,
     } as Record<MeasurementType, number>
   )[type];
@@ -859,8 +843,8 @@ function linearEstimate(
 function ellipseCircumference(widthCm: number, depthCm: number) {
   const a = Math.max(widthCm, 1) / 2;
   const b = Math.max(depthCm, 1) / 2;
-  const h = (a - b) ** 2 / (a + b) ** 2;
-  return Math.PI * (a + b) * (1 + (3 * h) / (10 + Math.sqrt(4 - 3 * h)));
+  // Ramanujan's second approximation for an ellipse circumference.
+  return Math.PI * (3 * (a + b) - Math.sqrt((3 * a + b) * (a + 3 * b)));
 }
 function imageDimensions(frame: CameraFrame, pose: MediaPipePoseResult) {
   const width = pose.imageWidth ?? frame.width;
@@ -950,8 +934,10 @@ async function validateBodyMeasurements(
 ) {
   const bmi = weight ? weight / Math.pow(height / 100, 2) : 22;
 
+  // Demographics cannot validate an individual's torso contour. Do not let
+  // the remote generic model overwrite chest, waist, or hip scan readings.
   const validationParts = measurementParts.filter(
-    (part) => part.id !== "shortSleeve",
+    (part) => !["shortSleeve", "chest", "waist", "hip"].includes(part.id),
   );
 
   const validationPromises = validationParts.map(async (part) => {
@@ -999,11 +985,11 @@ function normalizeBodyProportions(
   const hip = scan.readings.hip;
 
   if (hip) {
-    hip.valueCm = blendTowardExpected(hip.valueCm, expected.hip, 0.45);
+    hip.valueCm = blendTowardExpected(hip.valueCm, expected.hip, 0.2);
   }
 
   if (waist) {
-    waist.valueCm = blendTowardExpected(waist.valueCm, expected.waist, 0.5);
+    waist.valueCm = blendTowardExpected(waist.valueCm, expected.waist, 0.2);
   }
 
   if (waist && hip && waist.valueCm > hip.valueCm * 0.94) {
@@ -1023,6 +1009,14 @@ function normalizeBodyProportions(
 
   const calf = scan.readings.calf;
   const thigh = scan.readings.thigh;
+  if (thigh) {
+    thigh.valueCm = blendTowardExpected(thigh.valueCm, expected.thigh, 0.25);
+    thigh.valueCm = clamp(
+      thigh.valueCm,
+      Math.round(expected.thigh * 0.78),
+      Math.round(expected.thigh * 1.25),
+    );
+  }
   if (calf) {
     calf.valueCm = blendTowardExpected(calf.valueCm, expected.calf, 0.55);
   }
@@ -1048,6 +1042,7 @@ function expectedCircumferences(heightCm: number, weightKg?: number) {
     hip: 96 * (heightFactor * 0.25 + weightFactor * 0.75),
     bicep: 32 * (heightFactor * 0.2 + weightFactor * 0.8),
     calf: 37 * (heightFactor * 0.35 + weightFactor * 0.65),
+    thigh: 56 * (heightFactor * 0.25 + weightFactor * 0.75),
   };
 }
 

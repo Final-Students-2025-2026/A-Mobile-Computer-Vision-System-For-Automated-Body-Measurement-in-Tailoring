@@ -133,8 +133,8 @@ export default function TakeMeasurements() {
 
     if (!hasBodyInfo || !client?.height || !client?.weight) {
       Alert.alert(
-        "Body info needed",
-        "Please add this client's height and weight first. This helps calibrate the scan.",
+        "Client details needed",
+        "Please add this client's height and weight first. This calibrates the scan.",
         [{ text: "OK", onPress: () => router.push(`/client/${clientId}` as any) }],
       );
       return;
@@ -338,7 +338,7 @@ export default function TakeMeasurements() {
         {!hasBodyInfo ? (
           <TouchableOpacity
             style={styles.primaryAction}
-            onPress={() => router.push("/bodyInfo")}
+            onPress={() => router.push(`/client/${clientId}` as any)}
           >
             <Text style={styles.primaryActionText}>Add height and weight</Text>
           </TouchableOpacity>
