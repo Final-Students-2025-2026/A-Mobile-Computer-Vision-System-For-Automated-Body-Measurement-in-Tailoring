@@ -750,15 +750,18 @@ function frontWidths(values: {
 function girthCorrection(type: MeasurementType) {
   return (
     {
-      chest: 1.14, // torso cross-section is squarer than an ellipse
-      waist: 1.12,
-      hip: 1.08,
-      neck: 1.02, // nearly circular, so the ellipse is close
-      bicep: 1.02,
-      wrist: 1.02,
-      thigh: 1.05,
-      calf: 1.04,
-      shoulder: 1.0, // linear measurements, no shape assumption
+      // ALL 1.0 = no change. Fill these in from real measurements:
+      // scan a person, tape the same person, set factor = tape / app.
+      // Do NOT guess these. Leave at 1.0 until you have the numbers.
+      chest: 1.0,
+      waist: 1.0,
+      hip: 1.0,
+      neck: 1.0,
+      bicep: 1.0,
+      wrist: 1.0,
+      thigh: 1.0,
+      calf: 1.0,
+      shoulder: 1.0,
       sleeve: 1.0,
       inseam: 1.0,
       outseam: 1.0,
@@ -769,17 +772,19 @@ function girthCorrection(type: MeasurementType) {
 function depthRatio(type: MeasurementType) {
   return (
     {
-      neck: 0.44,
+      // Limbs are close to circular, so depth should be near their width.
+      // The torso is genuinely flatter, so those ratios stay well below 1.
+      neck: 0.9,
       shoulder: 0.36,
       chest: 0.74,
       waist: 0.67,
       hip: 0.8,
       sleeve: 0.31,
-      bicep: 0.42,
-      wrist: 0.28,
+      bicep: 0.95,
+      wrist: 0.95,
       inseam: 0.42,
-      thigh: 0.58,
-      calf: 0.46,
+      thigh: 0.62,
+      calf: 0.92,
       outseam: 0.44,
     } as Record<MeasurementType, number>
   )[type];
