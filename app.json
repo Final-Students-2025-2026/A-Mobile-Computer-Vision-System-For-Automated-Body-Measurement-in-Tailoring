@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.measureai.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Allow Measure AI to use your camera for on-device pose detection."
       }
     },
     "android": {
@@ -24,7 +25,8 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -32,13 +34,6 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      [
-        "react-native-vision-camera",
-        {
-          "cameraPermissionText": "Allow Measure AI to use your camera for on-device pose detection.",
-          "enableMicrophonePermission": false
-        }
-      ],
       [
         "react-native-mediapipe-posedetection",
         {
@@ -84,7 +79,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "dd92d056-4873-4e44-bad3-4eef55661e5c"
+        "projectId": "6b5ec3b6-22c8-4007-9218-df3e6348ca91"
       }
     }
   }

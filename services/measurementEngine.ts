@@ -395,28 +395,35 @@ function medianScans(scans: BodyScanResult[]): BodyScanResult {
   const middle = (values: number[]) => {
     const sorted = [...values].sort((a, b) => a - b);
     const index = Math.floor(sorted.length / 2);
-    return sorted.length % 2 ? sorted[index] : (sorted[index - 1] + sorted[index]) / 2;
+    return sorted.length % 2
+      ? sorted[index]
+      : (sorted[index - 1] + sorted[index]) / 2;
   };
-  const readings = measurementParts.reduce((result, part) => {
-    const samples = scans.map((scan) => scan.readings[part.id]);
-    const reference = samples[0];
-    const contourSamples = samples
-      .map((reading) => reading.contour)
-      .filter((contour): contour is BodyContourSample => Boolean(contour));
-    result[part.id] = {
-      ...reference,
-      valueCm: Math.round(middle(samples.map((reading) => reading.valueCm)) * 10) / 10,
-      confidence: Math.min(...samples.map((reading) => reading.confidence)),
-      contour: contourSamples.length
-        ? {
-            ...contourSamples[0],
-            widthCm: middle(contourSamples.map((contour) => contour.widthCm)),
-            depthCm: middle(contourSamples.map((contour) => contour.depthCm)),
-          }
-        : undefined,
-    };
-    return result;
-  }, {} as Record<MeasurementType, MeasurementResult>);
+  const readings = measurementParts.reduce(
+    (result, part) => {
+      const samples = scans.map((scan) => scan.readings[part.id]);
+      const reference = samples[0];
+      const contourSamples = samples
+        .map((reading) => reading.contour)
+        .filter((contour): contour is BodyContourSample => Boolean(contour));
+      result[part.id] = {
+        ...reference,
+        valueCm:
+          Math.round(middle(samples.map((reading) => reading.valueCm)) * 10) /
+          10,
+        confidence: Math.min(...samples.map((reading) => reading.confidence)),
+        contour: contourSamples.length
+          ? {
+              ...contourSamples[0],
+              widthCm: middle(contourSamples.map((contour) => contour.widthCm)),
+              depthCm: middle(contourSamples.map((contour) => contour.depthCm)),
+            }
+          : undefined,
+      };
+      return result;
+    },
+    {} as Record<MeasurementType, MeasurementResult>,
+  );
 
   return {
     ...scans[0],
@@ -426,9 +433,7 @@ function medianScans(scans: BodyScanResult[]): BodyScanResult {
       ? {
           ...scans[0].calibration,
           pixelsPerCm: middle(
-            scans
-              .map((scan) => scan.calibration?.pixelsPerCm)
-              .filter(isNumber),
+            scans.map((scan) => scan.calibration?.pixelsPerCm).filter(isNumber),
           ),
         }
       : undefined,
@@ -615,12 +620,13 @@ function estimateBodyScanFromPose(
     rightKnee = landmarks[26],
     leftAnkle = landmarks[27],
     rightAnkle = landmarks[28];
-  const shoulderWidth = cmDistance(
+  const shoulderJointWidth = cmDistance(
     leftShoulder,
     rightShoulder,
     dimensions,
     calibration,
   );
+  const outerShoulderWidth = estimateOuterShoulderWidth(shoulderJointWidth);
   const hipWidth = cmDistance(leftHip, rightHip, dimensions, calibration);
   const torsoHeight = cmDistance(
     midpoint(leftShoulder, rightShoulder),
@@ -641,7 +647,7 @@ function estimateBodyScanFromPose(
     cmDistance(rightKnee, rightAnkle, dimensions, calibration),
   ]);
   if (
-    [shoulderWidth, hipWidth, torsoHeight, armLength, legLength].some(
+    [shoulderJointWidth, hipWidth, torsoHeight, armLength, legLength].some(
       (value) => value <= 0,
     )
   )
@@ -650,7 +656,8 @@ function estimateBodyScanFromPose(
     );
 
   const widths = frontWidths({
-    shoulderWidth,
+    shoulderWidth: shoulderJointWidth,
+    outerShoulderWidth,
     hipWidth,
     armLength,
     legLength,
@@ -724,13 +731,14 @@ function estimateBodyScanFromPose(
 
 function frontWidths(values: {
   shoulderWidth: number;
+  outerShoulderWidth: number;
   hipWidth: number;
   armLength: number;
   legLength: number;
   lowerLeg: number;
   torsoHeight: number;
 }): Record<MeasurementType, number> {
-  const chestWidth = values.shoulderWidth * 0.94 + values.torsoHeight * 0.08;
+  const chestWidth = values.shoulderWidth * 0.96;
 
   /*
    * Hip pose points sit at the pelvic joints, inside the external body
@@ -759,7 +767,9 @@ function frontWidths(values: {
   return {
     neck: neckWidth,
 
-    shoulder: values.shoulderWidth,
+    // MediaPipe's shoulder points are joint centres. A tailor's shoulder
+    // width runs from one outer acromion tip to the other.
+    shoulder: values.outerShoulderWidth,
 
     chest: chestWidth,
 
@@ -783,6 +793,12 @@ function frontWidths(values: {
     // natural waist. Include the hip-to-waist rise.
     outseam: values.legLength + values.torsoHeight * 0.24,
   };
+}
+
+function estimateOuterShoulderWidth(shoulderJointWidth: number) {
+  // Extend the joint-centre distance to the outer bony shoulder tips. The
+  // floor prevents the correction becoming too small for narrower frames.
+  return shoulderJointWidth + Math.max(2.5, shoulderJointWidth * 0.08);
 }
 
 function depthRatio(type: MeasurementType) {

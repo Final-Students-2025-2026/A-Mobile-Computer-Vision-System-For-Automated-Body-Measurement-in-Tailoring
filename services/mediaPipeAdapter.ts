@@ -1,8 +1,4 @@
 import {
-  PoseDetectionOnImage,
-  Delegate,
-} from "react-native-mediapipe-posedetection";
-import {
   registerMediaPipePoseAdapter,
   MediaPipePoseResult,
   CameraFrame,
@@ -16,6 +12,14 @@ async function mediaPipeAdapter(
   if (!frame.uri) return null;
 
   try {
+    // This package loads VisionCamera's native module as soon as it is imported.
+    // Keeping the import here means an outdated development build can still open
+    // the app; measurements simply return no pose until the native build is
+    // rebuilt with the camera module included.
+    const { PoseDetectionOnImage, Delegate } = require(
+      "react-native-mediapipe-posedetection",
+    );
+
     const result = await PoseDetectionOnImage(frame.uri, MODEL_FILE, {
       numPoses: 1,
       minPoseDetectionConfidence: 0.75,
