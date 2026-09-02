@@ -16,7 +16,17 @@ import * as SplashScreen from "expo-splash-screen";
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <RootLayoutContent />
+      </AuthProvider>
+    </ThemeProvider>
+  );
+}
+
+function RootLayoutContent() {
+  const [fontsLoaded, fontError] = useFonts({
     PlusJakartaSans_400Regular,
     PlusJakartaSans_500Medium,
     PlusJakartaSans_600SemiBold,
@@ -25,8 +35,8 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (fontsLoaded) SplashScreen.hideAsync();
-  }, [fontsLoaded]);
+    if (fontsLoaded || fontError) SplashScreen.hideAsync();
+  }, [fontsLoaded, fontError]);
 
   // Register the native pose detector before a measurement scan begins.
   // Without this, the measurement engine has no pose adapter and rejects
@@ -35,23 +45,19 @@ export default function RootLayout() {
     setupMediaPipe();
   }, []);
 
-  if (!fontsLoaded) return null;
+  if (!fontsLoaded && !fontError) return null;
 
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="splash_screen" />
-          <Stack.Screen name="onboarding" />
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="profile" />
-          <Stack.Screen name="client/[id]" />
-          <Stack.Screen name="measurements/[id]" />
-          <Stack.Screen name="newClient" />
-        </Stack>
-      </AuthProvider>
-    </ThemeProvider>
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
+      <Stack.Screen name="splash_screen" />
+      <Stack.Screen name="onboarding" />
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="profile" />
+      <Stack.Screen name="client/[id]" />
+      <Stack.Screen name="measurements/[id]" />
+      <Stack.Screen name="newClient" />
+    </Stack>
   );
 }

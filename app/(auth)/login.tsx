@@ -142,13 +142,6 @@ export default function Login() {
               )}
             </TouchableOpacity>
 
-            {/* Phone */}
-            <TouchableOpacity
-              style={styles.socialBtn}
-              onPress={() => router.push("/(auth)/phoneLogin")}
-            >
-              <Text style={styles.phoneIcon}>📱</Text>
-            </TouchableOpacity>
           </View>
 
           {/* Sign up */}
@@ -259,7 +252,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   socialIcon: { width: 24, height: 24 },
-  phoneIcon: { fontSize: 24 },
   signupRow: {
     flexDirection: "row",
     justifyContent: "center",

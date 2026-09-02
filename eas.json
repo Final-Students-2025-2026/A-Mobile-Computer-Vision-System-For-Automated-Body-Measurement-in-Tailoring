@@ -9,7 +9,24 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        " EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyAxDgpkNLz8OXDWivKus8-oEh64RHvg8MI",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "measure-ai-97e94.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "measure-ai-97e94",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "measure-ai-97e94.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "786388966844",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:786388966844:android:1cbf6155196fcc6d17dfb9",
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "786388966844-i8vqn3itvktrap484poen6tbdvfjtkoe.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "786388966844-i8vqn3itvktrap484poen6tbdvfjtkoe.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "786388966844-5dk3uit8gbqvrnda8tcmoa2lsvh0nvav.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "786388966844-i8vqn3itvktrap484poen6tbdvfjtkoe.apps.googleusercontent.com",
+        "EXPO_PUBLIC_MEASUREMENT_API_URL": "https://measure-ai-flask-2.onrender.com",
+        "EXPO_PUBLIC_VALIDATION_API_URL": "https://measure-ai-api.onrender.com"
+      }
     },
     "production": {
       "autoIncrement": true
