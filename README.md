@@ -94,7 +94,7 @@ where  h = (a − b)² / (a + b)²
 ### Installation
 
 ```bash
-git clone https://github.com/Final-Students-2025-2026/A-Mobile-Computer-Vision-System-For-Automated-Body-Measurement-in-Tailoring.git
+git clone https://github.com/Ruwy123/Measure-AI.git
 cd Measure-AI
 npm install
 ```
@@ -177,7 +177,7 @@ Repeatability was assessed by repeated scanning without repositioning. Most meas
 - **Landmarks are joint centres.** The system distinguishes poorly between individuals of similar frame but different build, because the joints sit in nearly the same positions.
 - **Calibration depends on a self-reported height.** An error in that figure scales every measurement proportionally.
 - **Sensitivity to clothing and posture.** Loose garments displace the apparent outline; rotation away from square-on foreshortens frontal widths.
-- **Training data is predominantly non-African.** The validation model is used as a plausibility check rather than a fit predictor, which limits the practical effect, but it remains a stated limitation.
+
 
 ---
 
